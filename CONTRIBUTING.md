@@ -1,0 +1,44 @@
+# Contributing to Duekeep
+
+## Setup
+
+```bash
+pnpm install
+pnpm dev          # Next.js
+pnpm test         # Vitest (engine contract — expect red until evaluate* is implemented)
+pnpm typecheck
+pnpm lint
+```
+
+## Where to work
+
+| Area | Path | Owner (handoff) |
+|------|------|-----------------|
+| Due math | `src/engine/` | **Ariel** — implement until `pnpm test` is green |
+| Scaffold / harness | repo root, configs, tests defining contract | Mercer (this scaffold) |
+| UI | `src/app/` | later |
+| DB | `src/db/` | schema placeholder only for now |
+
+## Implementing the engine
+
+1. Read `ARCHITECTURE.md` (contract + time-zone rules).
+2. Open `src/engine/evaluate.test.ts` — that table is the spec.
+3. Replace the `NotImplementedError` in `evaluateItem` (and keep `evaluateCatalog` as a pure map unless you need shared helpers).
+4. Do **not** weaken tests to get green; change tests only if the product contract changes, and update `ARCHITECTURE.md` in the same PR.
+5. Prefer small pure helpers co-located under `src/engine/` (e.g. `calendar.ts`) — still no I/O.
+
+## Time zone note
+
+Ariel is in **Europe/Berlin**. Pass that zone from adapters/UI when evaluating. Engine tests use `Europe/Berlin` explicitly. Default inside evaluate* if nothing is passed: `"UTC"`.
+
+## Commits
+
+Clear, imperative subjects. Examples:
+
+- `feat(engine): implement daily/weekly evaluateItem`
+- `test(engine): add monthly edge cases for month-end`
+- `docs: clarify horizon default`
+
+## PR checklist
+
+See `ARCHITECTURE.md`.
