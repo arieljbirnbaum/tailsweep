@@ -24,6 +24,17 @@ Product brief lives in Notion. Engine before chrome; dogfood on real chores befo
 
 Gamification, social, full GTD, AI coaching chat, accounts-heavy SaaS.
 
+## Setup
+
+```bash
+git clone git@github.com:arieljbirnbaum/duekeep.git
+cd duekeep
+pnpm install   # creates pnpm-lock.yaml if missing; packageManager is pnpm@12.6.0
+pnpm typecheck && pnpm lint && pnpm test
+```
+
+`pnpm test` is **expected red** until Ariel implements `evaluateItem`.
+
 ## Architecture
 
 See **[ARCHITECTURE.md](./ARCHITECTURE.md)** for layering, engine purity rules, time-zone assumptions (UTC instants + IANA day boundaries; dogfood `Europe/Berlin`), and the PR checklist.
