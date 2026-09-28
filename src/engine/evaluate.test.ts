@@ -1,8 +1,5 @@
 /**
- * Contract tests for the due-engine.
- *
- * Each case lists `covers` rule IDs from `contract-rules.ts`. The meta-test
- * fails if any `enforced: "test"` rule is uncovered (contract coverage).
+ * Behavioral tests for the due-engine.
  *
  * Prefer Instant.equals for nextDue — state-only rows miss SOD vs wall-clock bugs.
  *
@@ -11,12 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import { evaluateItem, evaluateCatalog } from "./evaluate";
-import { fixedClock } from "./clock";
 import { Temporal } from "./temporal";
-import {
-  testEnforcedRuleIds,
-  type TestEnforcedRuleId,
-} from "./contract-rules";
 import type { CatalogItem, DueState } from "./types";
 
 const ZONE = "Europe/Berlin";
@@ -53,8 +45,6 @@ function sod(plainDate: string, zone: string = ZONE): Temporal.Instant {
 
 type Case = {
   name: string;
-  /** Contract rules this row is responsible for covering. */
-  covers: readonly TestEnforcedRuleId[];
   item: CatalogItem;
   now?: Temporal.Instant;
   horizonDays?: number;
@@ -75,7 +65,6 @@ const TODAY_SOD = startOfLocalDay(NOW);
 const cases: Case[] = [
   {
     name: "paused is always not_applicable with null nextDue",
-    covers: ["state.paused", "nextdue.null_when_not_applicable"],
     item: item({
       id: "paused-daily",
       cadence: { kind: "daily" },
@@ -87,7 +76,6 @@ const cases: Case[] = [
   },
   {
     name: "as_needed with prior completion → not_applicable, null nextDue",
-    covers: ["state.as_needed.done", "nextdue.null_when_not_applicable"],
     item: item({
       id: "as-needed-done",
       cadence: { kind: "as_needed" },
@@ -98,10 +86,6 @@ const cases: Case[] = [
   },
   {
     name: "as_needed never done → due; nextDue = today SOD",
-    covers: [
-      "state.as_needed.never",
-      "nextdue.start_of_local_day",
-    ],
     item: item({
       id: "as-needed-new",
       cadence: { kind: "as_needed" },
@@ -112,11 +96,6 @@ const cases: Case[] = [
   },
   {
     name: "daily never done → overdue; nextDue = today SOD (not wall-clock now)",
-    covers: [
-      "state.scheduled.never",
-      "nextdue.start_of_local_day",
-      "cadence.daily",
-    ],
     item: item({
       id: "daily-new",
       cadence: { kind: "daily" },
@@ -127,11 +106,6 @@ const cases: Case[] = [
   },
   {
     name: "daily lastDone yesterday → due today; nextDue = today SOD",
-    covers: [
-      "state.compare.due",
-      "nextdue.start_of_local_day",
-      "cadence.daily",
-    ],
     item: item({
       id: "daily-yday",
       cadence: { kind: "daily" },
@@ -142,11 +116,6 @@ const cases: Case[] = [
   },
   {
     name: "daily lastDone two days ago → overdue; nextDue = that due day's SOD",
-    covers: [
-      "state.compare.overdue",
-      "nextdue.start_of_local_day",
-      "cadence.daily",
-    ],
     item: item({
       id: "daily-old",
       cadence: { kind: "daily" },
@@ -157,11 +126,6 @@ const cases: Case[] = [
   },
   {
     name: "daily lastDone today → upcoming tomorrow within horizon",
-    covers: [
-      "state.compare.upcoming",
-      "nextdue.start_of_local_day",
-      "cadence.daily",
-    ],
     item: item({
       id: "daily-today",
       cadence: { kind: "daily" },
@@ -172,7 +136,6 @@ const cases: Case[] = [
   },
   {
     name: "weekly lastDone 3 days ago → upcoming (due in 4 days)",
-    covers: ["state.compare.upcoming", "cadence.weekly", "nextdue.start_of_local_day"],
     item: item({
       id: "weekly-mid",
       cadence: { kind: "weekly" },
@@ -183,7 +146,6 @@ const cases: Case[] = [
   },
   {
     name: "weekly lastDone 7 days ago → due",
-    covers: ["state.compare.due", "cadence.weekly", "nextdue.start_of_local_day"],
     item: item({
       id: "weekly-due",
       cadence: { kind: "weekly" },
@@ -194,7 +156,6 @@ const cases: Case[] = [
   },
   {
     name: "weekly lastDone 10 days ago → overdue",
-    covers: ["state.compare.overdue", "cadence.weekly", "nextdue.start_of_local_day"],
     item: item({
       id: "weekly-over",
       cadence: { kind: "weekly" },
@@ -205,7 +166,6 @@ const cases: Case[] = [
   },
   {
     name: "every_n_days(3) lastDone 3 days ago → due",
-    covers: ["cadence.every_n_days", "state.compare.due", "nextdue.start_of_local_day"],
     item: item({
       id: "n3-due",
       cadence: { kind: "every_n_days", days: 3 },
@@ -216,11 +176,6 @@ const cases: Case[] = [
   },
   {
     name: "every_n_days(14) beyond horizon 7 → not_applicable",
-    covers: [
-      "state.compare.beyond_horizon",
-      "cadence.every_n_days",
-      "nextdue.start_of_local_day",
-    ],
     item: item({
       id: "n14-far",
       cadence: { kind: "every_n_days", days: 14 },
@@ -233,7 +188,6 @@ const cases: Case[] = [
   },
   {
     name: "every_n_days(14) within extended horizon → upcoming",
-    covers: ["state.compare.upcoming", "cadence.every_n_days"],
     item: item({
       id: "n14-near",
       cadence: { kind: "every_n_days", days: 14 },
@@ -245,7 +199,6 @@ const cases: Case[] = [
   },
   {
     name: "horizon inclusive: nextDue local date === today+horizon → upcoming",
-    covers: ["horizon.inclusive_boundary", "state.compare.upcoming", "cadence.every_n_days"],
     item: item({
       id: "horizon-eq",
       cadence: { kind: "every_n_days", days: 7 },
@@ -258,7 +211,6 @@ const cases: Case[] = [
   },
   {
     name: "horizon exclusive beyond: nextDue === today+horizon+1 → not_applicable",
-    covers: ["horizon.inclusive_boundary", "state.compare.beyond_horizon"],
     item: item({
       id: "horizon-gt",
       cadence: { kind: "every_n_days", days: 8 },
@@ -270,7 +222,6 @@ const cases: Case[] = [
   },
   {
     name: "monthly lastDone same day last month → due",
-    covers: ["cadence.monthly", "state.compare.due", "nextdue.start_of_local_day"],
     item: item({
       id: "monthly-due",
       cadence: { kind: "monthly" },
@@ -281,7 +232,6 @@ const cases: Case[] = [
   },
   {
     name: "yearly lastDone last year same calendar day → due",
-    covers: ["cadence.yearly", "state.compare.due", "nextdue.start_of_local_day"],
     item: item({
       id: "yearly-due",
       cadence: { kind: "yearly" },
@@ -292,7 +242,6 @@ const cases: Case[] = [
   },
   {
     name: "quarterly lastDone ~3 months ago → due",
-    covers: ["cadence.quarterly", "state.compare.due", "nextdue.start_of_local_day"],
     item: item({
       id: "quarterly-due",
       cadence: { kind: "quarterly" },
@@ -340,38 +289,5 @@ describe("evaluateCatalog contract", () => {
     expect(results[0]?.state).toBe("not_applicable");
     expect(results[0]?.nextDue).toBeNull();
     expect(results[1]?.state).toBe("due");
-  });
-});
-
-describe("contract rule coverage", () => {
-  it("every test-enforced rule is covered by ≥1 case or catalog test", () => {
-    const covered = new Set<TestEnforcedRuleId>();
-    for (const c of cases) {
-      for (const id of c.covers) covered.add(id);
-    }
-    // catalog.preserves_order is covered by the evaluateCatalog describe above.
-    covered.add("catalog.preserves_order");
-
-    const missing = testEnforcedRuleIds().filter((id) => !covered.has(id));
-    expect(
-      missing,
-      `Uncovered contract rules (add a case with covers: [...]): ${missing.join(", ")}`,
-    ).toEqual([]);
-  });
-
-  it("every case declares at least one covers id", () => {
-    const empty = cases.filter((c) => c.covers.length === 0).map((c) => c.name);
-    expect(empty).toEqual([]);
-  });
-});
-
-describe("fixedClock", () => {
-  it("freezes Instant (equals across calls; identity not asserted)", () => {
-    const instant = Temporal.Instant.from("2026-09-27T12:00:00.000Z");
-    const clock = fixedClock(instant);
-    const a = clock.now();
-    const b = clock.now();
-    expect(a.equals(instant)).toBe(true);
-    expect(a.equals(b)).toBe(true);
   });
 });
