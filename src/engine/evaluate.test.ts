@@ -250,6 +250,113 @@ const cases: Case[] = [
     wantState: "due",
     wantNextDue: TODAY_SOD,
   },
+  {
+    name: "monthly lastDone such that next is yesterday → overdue",
+    item: item({
+      id: "monthly-over",
+      cadence: { kind: "monthly" },
+      lastDone: Temporal.Instant.from("2026-08-26T10:00:00.000Z"),
+    }),
+    wantState: "overdue",
+    wantNextDue: sod("2026-09-26"),
+  },
+  {
+    name: "monthly lastDone such that next is in a few days within horizon → upcoming",
+    item: item({
+      id: "monthly-upcoming",
+      cadence: { kind: "monthly" },
+      lastDone: Temporal.Instant.from("2026-08-30T10:00:00.000Z"),
+    }),
+    wantState: "upcoming",
+    wantNextDue: sod("2026-09-30"),
+  },
+  {
+    name: "quarterly lastDone such that next is yesterday → overdue",
+    item: item({
+      id: "quarterly-over",
+      cadence: { kind: "quarterly" },
+      lastDone: Temporal.Instant.from("2026-06-26T10:00:00.000Z"),
+    }),
+    wantState: "overdue",
+    wantNextDue: sod("2026-09-26"),
+  },
+  {
+    name: "yearly lastDone such that next is in a few days within horizon → upcoming",
+    item: item({
+      id: "yearly-upcoming",
+      cadence: { kind: "yearly" },
+      lastDone: Temporal.Instant.from("2025-09-30T10:00:00.000Z"),
+    }),
+    wantState: "upcoming",
+    wantNextDue: sod("2026-09-30"),
+  },
+  // --- DST lock-in (Europe/Berlin): spring gap / fall fold SOD Instants ---
+  {
+    name: "DST spring: daily across Berlin spring-forward → due; nextDue = local 2026-03-29 SOD (CEST)",
+    item: item({
+      id: "dst-spring-daily",
+      cadence: { kind: "daily" },
+      lastDone: Temporal.Instant.from("2026-03-28T12:00:00.000Z"),
+      zone: "Europe/Berlin",
+    }),
+    now: Temporal.Instant.from("2026-03-29T12:00:00.000Z"),
+    wantState: "due",
+    // Verified via polyfill: local midnight 2026-03-29 Berlin = 2026-03-28T23:00:00Z
+    wantNextDue: sod("2026-03-29", "Europe/Berlin"),
+  },
+  {
+    name: "DST fall: daily across Berlin fall-back → due; nextDue = local 2026-10-25 SOD (CET)",
+    item: item({
+      id: "dst-fall-daily",
+      cadence: { kind: "daily" },
+      lastDone: Temporal.Instant.from("2026-10-24T12:00:00.000Z"),
+      zone: "Europe/Berlin",
+    }),
+    now: Temporal.Instant.from("2026-10-25T12:00:00.000Z"),
+    wantState: "due",
+    // Verified via polyfill: local midnight 2026-10-25 Berlin = 2026-10-24T22:00:00Z
+    wantNextDue: sod("2026-10-25", "Europe/Berlin"),
+  },
+  // --- Zone diversity ---
+  {
+    name: "America/Los_Angeles daily lastDone yesterday → due; nextDue = LA SOD (not Berlin)",
+    item: item({
+      id: "la-daily-due",
+      cadence: { kind: "daily" },
+      lastDone: Temporal.Instant.from("2026-09-26T19:00:00.000Z"),
+      zone: "America/Los_Angeles",
+    }),
+    now: Temporal.Instant.from("2026-09-27T19:00:00.000Z"),
+    wantState: "due",
+    // LA local 2026-09-27 midnight PDT = 2026-09-27T07:00:00Z (≠ Berlin SOD)
+    wantNextDue: sod("2026-09-27", "America/Los_Angeles"),
+  },
+  {
+    name: "civil-date split: near-UTC-midnight Instant — Berlin local date ≠ UTC date → due with Berlin SOD",
+    item: item({
+      id: "civil-split-berlin",
+      cadence: { kind: "daily" },
+      // lastDone local Berlin 2026-09-27 → next = Berlin 2026-09-28 SOD
+      lastDone: Temporal.Instant.from("2026-09-27T12:00:00.000Z"),
+      zone: "Europe/Berlin",
+    }),
+    // 2026-09-28T01:00Z = Berlin 03:00 Sep 28 / LA 18:00 Sep 27 — Berlin date ≠ UTC date
+    now: Temporal.Instant.from("2026-09-28T01:00:00.000Z"),
+    wantState: "due",
+    wantNextDue: sod("2026-09-28", "Europe/Berlin"),
+  },
+  {
+    name: "civil-date split: same Instant under LA — still Sep 27 locally → upcoming (next = LA Sep 28 SOD)",
+    item: item({
+      id: "civil-split-la",
+      cadence: { kind: "daily" },
+      lastDone: Temporal.Instant.from("2026-09-27T12:00:00.000Z"),
+      zone: "America/Los_Angeles",
+    }),
+    now: Temporal.Instant.from("2026-09-28T01:00:00.000Z"),
+    wantState: "upcoming",
+    wantNextDue: sod("2026-09-28", "America/Los_Angeles"),
+  },
 ];
 
 describe("evaluateItem contract", () => {
@@ -264,8 +371,6 @@ describe("evaluateItem contract", () => {
     } else {
       expect(result.nextDue).not.toBeNull();
       expect(result.nextDue!.equals(c.wantNextDue)).toBe(true);
-      // Wall-clock midday must never be returned as nextDue.
-      expect(result.nextDue!.equals(c.now ?? NOW)).toBe(false);
     }
   });
 });

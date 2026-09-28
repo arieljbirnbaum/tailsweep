@@ -32,8 +32,8 @@ export type CatalogItemStatus = "active" | "paused";
 /**
  * A catalog (chore/routine) item.
  * `lastDone` is a Temporal.Instant (UTC). Calendar-day math uses required `zone`:
- * Instant → ZonedDateTimeISO(item.zone) → PlainDate → add cadence →
- * start-of-day Instant in that zone.
+ * Instant → ZonedDateTimeISO(item.zone) → add cadence Duration →
+ * startOfDay → Instant. The SOD Instant is what the contract compares.
  */
 export type CatalogItem = {
   readonly id: string;

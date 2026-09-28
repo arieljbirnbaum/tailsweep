@@ -47,8 +47,8 @@ Behavioral contract is this doc plus the table-driven cases in `evaluate.test.ts
 
 - Facts are **`Temporal.Instant`** (UTC) plus a required IANA **`item.zone`** string. No `Date` anywhere in the project (ESLint `@typescript-eslint/no-restricted-types` + `no-restricted-syntax` — use Temporal).
 - **`Temporal.Now` is banned under `src/engine/**`** (ESLint). Inject `Clock` or pass `Temporal.Instant` from the edge (`src/time/system-clock.ts`).
-- **Calendar day boundaries** use **only** `item.zone`: Instant → `ZonedDateTimeISO(item.zone)` → `PlainDate` → add cadence → start-of-day Instant in that zone. No `options.timeZone`, no `"UTC"` default in evaluate\*.
-- **`nextDue`**: Instant at **start of the local due day** in `item.zone`. When converting a PlainDate (or local midnight) to Instant across DST gaps/folds, use Temporal’s **`disambiguation: "compatible"`** (Temporal’s common default — name it explicitly in implementer code). Do not invent silent half-hour offsets.
+- **Calendar day boundaries** use **only** `item.zone`: Instant → `ZonedDateTimeISO(item.zone)` → add cadence `Duration` → `startOfDay()` → Instant. The **SOD Instant** is what the contract compares (via `ZonedDateTime.compare` on the local SOD ZDTs). Temporal ZDT.`add` / `startOfDay` use disambiguation **`compatible` by default** — name that policy explicitly; do not invent silent half-hour offsets. No `options.timeZone`, no `"UTC"` default in evaluate\*.
+- **`nextDue`**: Instant at **start of the local due day** in `item.zone` (the SOD Instant above).
 - UX/adapters supply `zone` on each catalog item and `horizonDays` on every evaluate\* call. The engine requires both; it does not pick a dogfood default.
 - `horizonDays` (required): how far ahead “upcoming” extends; beyond horizon → `not_applicable`.
 - Invalid Instant / zone strings: let Temporal construction throw (`TypeError` / `RangeError`). Adapters own validation — the engine does **not** expose `assertDate` / `InvalidDateError`.
@@ -65,15 +65,15 @@ Behavioral contract is this doc plus the table-driven cases in `evaluate.test.ts
 - Calendar/.ics export is a **snapshot** under the tzdata rules of the runtime that generated it.
 - Runtime tzdata comes from the host / polyfill (Node/V8 ICU or browser); the engine does not ship its own tzdb in v1. Node vs browser can diverge — dogfood/tests should pin Node version when asserting civil dates near political transitions.
 - On IANA/tzdata rule changes: re-running evaluate\* may change local calendar day / start-of-day Instant for the same UTC Instant. That is accepted; do not rewrite historical completion instants. If a future feature indexes by local date, treat that index as a **cache** keyed by `(instant, zoneId, tzdataVersion)` or rebuild on tzdata bump — out of scope for v1.
-- DST gaps/folds: Temporal disambiguation (`compatible` by default) is the policy; lock behavior in tests.
+- DST gaps/folds: Temporal ZDT.`add` / `startOfDay` disambiguation (`compatible` by default) is the policy; lock spring/fall SOD Instants in `evaluate.test.ts`.
 
 ### State rules (completion-anchored)
 
 1. `paused` → `not_applicable` (`nextDue` null).
-2. `as_needed` + `lastDone` set → `not_applicable`; never done → `due`.
-3. Scheduled cadence, never done → `overdue`.
-4. Else `nextDueLocalDate = lastDoneLocalDate + cadence` (calendar add in zone).
-5. Compare to “today” in zone:
+2. `as_needed` + `lastDone` set → `not_applicable` (`nextDue` null); never done → `due` (`nextDue` = start of today in `item.zone`).
+3. Scheduled cadence, never done → `overdue` (`nextDue` = start of today in `item.zone`).
+4. Else next due = lastDone Instant → ZDT(item.zone) → add cadence Duration → startOfDay → Instant (calendar add in zone; disambiguation `compatible` by default).
+5. Compare next-due SOD to “today” SOD in zone:
    - next < today → `overdue`
    - next === today → `due`
    - today < next ≤ today+horizon → `upcoming`
