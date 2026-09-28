@@ -12,9 +12,8 @@
 import { describe, expect, it } from "vitest";
 import { evaluateItem, evaluateCatalog } from "./evaluate";
 import { fixedClock } from "./clock";
-import { NotImplementedError } from "./errors";
 import { Temporal } from "./temporal";
-import type { CatalogItem, Cadence, DueState } from "./types";
+import type { CatalogItem, DueState } from "./types";
 
 const ZONE = "Europe/Berlin";
 const HORIZON = 7;
@@ -235,26 +234,8 @@ describe("evaluateCatalog contract", () => {
   });
 });
 
-describe("stub status (handoff signal)", () => {
-  it("evaluateItem still throws NotImplemented until Ariel lands logic", () => {
-    // If this passes, stubs were replaced — great. If it fails because
-    // implementation returns values, the contract tests above are the source of truth.
-    // This test documents the scaffold state; skip once implemented.
-    const sample = item({
-      id: "stub-check",
-      cadence: { kind: "daily" } satisfies Cadence,
-      lastDone: Temporal.Instant.from("2026-09-26T10:00:00.000Z"),
-    });
-    try {
-      evaluateItem(sample, NOW, { horizonDays: HORIZON });
-      // Implemented: no throw. Contract tests above must be green.
-      expect(true).toBe(true);
-    } catch (e) {
-      expect(e).toBeInstanceOf(NotImplementedError);
-    }
-  });
-
-  it("fixedClock freezes Instant", () => {
+describe("fixedClock", () => {
+  it("freezes Instant", () => {
     const instant = Temporal.Instant.from("2026-09-27T12:00:00.000Z");
     const clock = fixedClock(instant);
     const a = clock.now();

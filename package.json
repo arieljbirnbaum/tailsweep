@@ -19,7 +19,6 @@
     "@js-temporal/polyfill": "0.5.1",
     "@libsql/client": "^0.18.0",
     "drizzle-orm": "^0.45.3",
-    "effect": "4.0.0-rc.117",
     "next": "16.3.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",

@@ -1,13 +1,12 @@
 import { match, P } from "ts-pattern";
 import { Temporal } from "./temporal";
 import {
-  Cadence,
-  DueState,
+  type Cadence,
+  type DueState,
   type CatalogItem,
   type EvaluatedItem,
   type EvaluateOptions,
 } from "./types";
-import { Ordering } from "effect";
 
 /**
  * Evaluate a single catalog item against `now`.
@@ -59,7 +58,7 @@ export function evaluateItem(
   const cadenceIntervalDuration = Temporal.Duration.from(cadenceInterval);
 
   if (lastDone === null) {
-    return { itemId, nextDue: now, state: "overdue" };
+    return { itemId, nextDue: todayLocal.toInstant(), state: "overdue" };
   }
 
   const nextDueLocal = lastDone
@@ -68,7 +67,7 @@ export function evaluateItem(
     .startOfDay();
   const nextDue = nextDueLocal.toInstant();
 
-  const state = match<Ordering.Ordering, DueState>(
+  const state = match<Temporal.ComparisonResult, DueState>(
     Temporal.ZonedDateTime.compare(nextDueLocal, todayLocal),
   )
     .with(-1, () => "overdue")
