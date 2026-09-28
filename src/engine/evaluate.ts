@@ -1,5 +1,5 @@
 import { NotImplementedError } from "./errors";
-import { assertDate } from "./clock";
+import type { Temporal } from "./temporal";
 import type {
   CatalogItem,
   EvaluatedItem,
@@ -10,11 +10,15 @@ import type {
  * Evaluate a single catalog item against `now`.
  *
  * CONTRACT (Ariel implements until tests green) — summary:
- * 1. Reject invalid `now` / `lastDone` via InvalidDateError (no string coercion).
+ * 1. `now` / `lastDone` are Temporal.Instant (validation at adapters; Temporal
+ *    construction throws on bad strings — no assertDate / InvalidDateError).
  * 2. Paused → not_applicable, nextDue null.
  * 3. as_needed + lastDone set → not_applicable; as_needed + never done → due.
  * 4. Completion-anchored: next due local date = lastDone local date + cadence.
- *    Never done → overdue (nextDue = start of "today" in zone, or null — see tests).
+ *    Calendar math: Instant → ZonedDateTimeISO(item.zone) → PlainDate → add →
+ *    start-of-day Instant in that zone (disambiguation: Temporal default
+ *    `compatible`). Never done → overdue (nextDue = start of "today" in zone,
+ *    or null — see tests).
  * 5. Compare next-due local calendar date to "today" in zone:
  *    before today → overdue; today → due; after today within horizon → upcoming;
  *    after horizon → not_applicable.
@@ -25,14 +29,12 @@ import type {
  */
 export function evaluateItem(
   item: CatalogItem,
-  now: Date,
+  now: Temporal.Instant,
   options: EvaluateOptions,
 ): EvaluatedItem {
-  assertDate("now", now);
-  if (item.lastDone !== null) {
-    assertDate(`item(${item.id}).lastDone`, item.lastDone);
-  }
-  // Keep options referenced so the stub signature stays honest for Ariel.
+  // Keep args referenced so the stub signature stays honest for Ariel.
+  void item;
+  void now;
   void options;
   throw new NotImplementedError("evaluateItem");
 }
@@ -43,9 +45,8 @@ export function evaluateItem(
  */
 export function evaluateCatalog(
   items: readonly CatalogItem[],
-  now: Date,
+  now: Temporal.Instant,
   options: EvaluateOptions,
 ): EvaluatedItem[] {
-  assertDate("now", now);
   return items.map((item) => evaluateItem(item, now, options));
 }

@@ -5,6 +5,8 @@
  * fs, fetch, or any I/O. Adapters live under src/db and UI under src/app.
  */
 
+export { Temporal } from "./temporal";
+
 export type {
   Cadence,
   NamedCadence,
@@ -18,12 +20,8 @@ export type {
   EvaluateOptions,
 } from "./types";
 
-export {
-  NotImplementedError,
-  InvalidDateError,
-  InvalidCadenceError,
-} from "./errors";
+export { NotImplementedError, InvalidCadenceError } from "./errors";
 
-export { systemClock, fixedClock, assertDate } from "./clock";
+export { systemClock, fixedClock } from "./clock";
 
 export { evaluateItem, evaluateCatalog } from "./evaluate";
