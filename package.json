@@ -16,6 +16,7 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "0.5.1",
     "@libsql/client": "^0.18.0",
     "drizzle-orm": "^0.45.3",
     "next": "16.3.6",
@@ -38,5 +39,8 @@
     "typescript-eslint": "^8.70.1",
     "vitest": "^5.0.2"
   },
-  "packageManager": "pnpm@12.6.0"
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=20"
+  }
 }

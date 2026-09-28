@@ -3,6 +3,8 @@
  * No UI / DB / IO / fetch / fs imports allowed in this module tree.
  */
 
+import type { Temporal } from "./temporal";
+
 /** Named cadence kinds (calendar-aligned). */
 export type NamedCadenceKind =
   | "daily"
@@ -34,14 +36,16 @@ export type CatalogItemStatus = "active" | "paused";
 
 /**
  * A catalog (chore/routine) item.
- * `lastDone` is an Instant (UTC ms). Calendar math uses required `zone`.
+ * `lastDone` is a Temporal.Instant (UTC). Calendar-day math uses required `zone`:
+ * Instant → ZonedDateTimeISO(item.zone) → PlainDate → add cadence →
+ * start-of-day Instant in that zone.
  */
 export type CatalogItem = {
   readonly id: string;
   readonly name: string;
   readonly cadence: Cadence;
   /** Instant of last completion, or null if never done. */
-  readonly lastDone: Date | null;
+  readonly lastDone: Temporal.Instant | null;
   /**
    * IANA time zone for day-boundary math (e.g. "Europe/Berlin").
    * Required — evaluate* uses only `item.zone` (no options fallback, no UTC default).
@@ -63,18 +67,18 @@ export type EvaluatedItem = {
   readonly itemId: string;
   readonly state: DueState;
   /**
-   * Next due instant (start of local due day in UTC), or null when
+   * Next due Instant at start of the local due day in `item.zone`, or null when
    * state is not_applicable and no next date applies.
    */
-  readonly nextDue: Date | null;
+  readonly nextDue: Temporal.Instant | null;
 };
 
 /**
- * Injectable clock — never call `new Date()` inside evaluate* for "now".
+ * Injectable clock — never call Temporal.Now / system time inside evaluate* for "now".
  * Tests pass a fixed clock; production injects system time.
  */
 export type Clock = {
-  now(): Date;
+  now(): Temporal.Instant;
 };
 
 export type EvaluateOptions = {

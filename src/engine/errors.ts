@@ -14,17 +14,6 @@ export class NotImplementedError extends Error {
   }
 }
 
-export class InvalidDateError extends Error {
-  readonly code = "INVALID_DATE" as const;
-
-  constructor(label: string, value: unknown) {
-    super(
-      `InvalidDateError: ${label} is not a valid Date (got ${String(value)}). No silent date coercion.`,
-    );
-    this.name = "InvalidDateError";
-  }
-}
-
 export class InvalidCadenceError extends Error {
   readonly code = "INVALID_CADENCE" as const;
 

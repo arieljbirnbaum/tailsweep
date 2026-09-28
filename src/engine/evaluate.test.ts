@@ -12,12 +12,13 @@
 import { describe, expect, it } from "vitest";
 import { evaluateItem, evaluateCatalog } from "./evaluate";
 import { fixedClock } from "./clock";
-import { InvalidDateError, NotImplementedError } from "./errors";
+import { NotImplementedError } from "./errors";
+import { Temporal } from "./temporal";
 import type { CatalogItem, Cadence, DueState } from "./types";
 
 const ZONE = "Europe/Berlin";
 const HORIZON = 7;
-const NOW = new Date("2026-09-27T12:00:00.000Z"); // Sun afternoon UTC ≈ Berlin CEST
+const NOW = Temporal.Instant.from("2026-09-27T12:00:00.000Z"); // Sun afternoon UTC ≈ Berlin CEST
 
 function item(
   overrides: Partial<CatalogItem> & Pick<CatalogItem, "id" | "cadence">,
@@ -34,13 +35,13 @@ function item(
 type Case = {
   name: string;
   item: CatalogItem;
-  now?: Date;
+  now?: Temporal.Instant;
   horizonDays?: number;
   wantState: DueState;
 };
 
 /**
- * Table-driven contract. Dates below are chosen so Europe/Berlin local
+ * Table-driven contract. Instants below are chosen so Europe/Berlin local
  * calendar dates are unambiguous (midday UTC → afternoon CEST).
  *
  * Semantics (must match ARCHITECTURE.md):
@@ -58,7 +59,7 @@ const cases: Case[] = [
     item: item({
       id: "paused-daily",
       cadence: { kind: "daily" },
-      lastDone: new Date("2026-09-01T10:00:00.000Z"),
+      lastDone: Temporal.Instant.from("2026-09-01T10:00:00.000Z"),
       status: "paused",
     }),
     wantState: "not_applicable",
@@ -68,7 +69,7 @@ const cases: Case[] = [
     item: item({
       id: "as-needed-done",
       cadence: { kind: "as_needed" },
-      lastDone: new Date("2026-01-01T10:00:00.000Z"),
+      lastDone: Temporal.Instant.from("2026-01-01T10:00:00.000Z"),
     }),
     wantState: "not_applicable",
   },
@@ -96,7 +97,7 @@ const cases: Case[] = [
       id: "daily-yday",
       cadence: { kind: "daily" },
       // 2026-09-26 local Berlin
-      lastDone: new Date("2026-09-26T10:00:00.000Z"),
+      lastDone: Temporal.Instant.from("2026-09-26T10:00:00.000Z"),
     }),
     wantState: "due",
   },
@@ -105,7 +106,7 @@ const cases: Case[] = [
     item: item({
       id: "daily-old",
       cadence: { kind: "daily" },
-      lastDone: new Date("2026-09-25T10:00:00.000Z"),
+      lastDone: Temporal.Instant.from("2026-09-25T10:00:00.000Z"),
     }),
     wantState: "overdue",
   },
@@ -114,7 +115,7 @@ const cases: Case[] = [
     item: item({
       id: "daily-today",
       cadence: { kind: "daily" },
-      lastDone: new Date("2026-09-27T08:00:00.000Z"),
+      lastDone: Temporal.Instant.from("2026-09-27T08:00:00.000Z"),
     }),
     wantState: "upcoming",
   },
@@ -123,7 +124,7 @@ const cases: Case[] = [
     item: item({
       id: "weekly-mid",
       cadence: { kind: "weekly" },
-      lastDone: new Date("2026-09-24T10:00:00.000Z"),
+      lastDone: Temporal.Instant.from("2026-09-24T10:00:00.000Z"),
     }),
     wantState: "upcoming",
   },
@@ -132,7 +133,7 @@ const cases: Case[] = [
     item: item({
       id: "weekly-due",
       cadence: { kind: "weekly" },
-      lastDone: new Date("2026-09-20T10:00:00.000Z"),
+      lastDone: Temporal.Instant.from("2026-09-20T10:00:00.000Z"),
     }),
     wantState: "due",
   },
@@ -141,7 +142,7 @@ const cases: Case[] = [
     item: item({
       id: "weekly-over",
       cadence: { kind: "weekly" },
-      lastDone: new Date("2026-09-17T10:00:00.000Z"),
+      lastDone: Temporal.Instant.from("2026-09-17T10:00:00.000Z"),
     }),
     wantState: "overdue",
   },
@@ -150,7 +151,7 @@ const cases: Case[] = [
     item: item({
       id: "n3-due",
       cadence: { kind: "every_n_days", days: 3 },
-      lastDone: new Date("2026-09-24T10:00:00.000Z"),
+      lastDone: Temporal.Instant.from("2026-09-24T10:00:00.000Z"),
     }),
     wantState: "due",
   },
@@ -159,7 +160,7 @@ const cases: Case[] = [
     item: item({
       id: "n14-far",
       cadence: { kind: "every_n_days", days: 14 },
-      lastDone: new Date("2026-09-26T10:00:00.000Z"),
+      lastDone: Temporal.Instant.from("2026-09-26T10:00:00.000Z"),
     }),
     horizonDays: 7,
     wantState: "not_applicable",
@@ -169,7 +170,7 @@ const cases: Case[] = [
     item: item({
       id: "n14-near",
       cadence: { kind: "every_n_days", days: 14 },
-      lastDone: new Date("2026-09-26T10:00:00.000Z"),
+      lastDone: Temporal.Instant.from("2026-09-26T10:00:00.000Z"),
     }),
     horizonDays: 20,
     wantState: "upcoming",
@@ -179,7 +180,7 @@ const cases: Case[] = [
     item: item({
       id: "monthly-due",
       cadence: { kind: "monthly" },
-      lastDone: new Date("2026-08-27T10:00:00.000Z"),
+      lastDone: Temporal.Instant.from("2026-08-27T10:00:00.000Z"),
     }),
     wantState: "due",
   },
@@ -188,7 +189,7 @@ const cases: Case[] = [
     item: item({
       id: "yearly-due",
       cadence: { kind: "yearly" },
-      lastDone: new Date("2025-09-27T10:00:00.000Z"),
+      lastDone: Temporal.Instant.from("2025-09-27T10:00:00.000Z"),
     }),
     wantState: "due",
   },
@@ -197,7 +198,7 @@ const cases: Case[] = [
     item: item({
       id: "quarterly-due",
       cadence: { kind: "quarterly" },
-      lastDone: new Date("2026-06-27T10:00:00.000Z"),
+      lastDone: Temporal.Instant.from("2026-06-27T10:00:00.000Z"),
     }),
     wantState: "due",
   },
@@ -210,26 +211,6 @@ describe("evaluateItem contract", () => {
     });
     expect(result.itemId).toBe(c.item.id);
     expect(result.state).toBe(c.wantState);
-  });
-
-  it("rejects non-Date now without coercion", () => {
-    const bad = item({ id: "x", cadence: { kind: "daily" } });
-    expect(() =>
-      evaluateItem(bad, "2026-09-27" as unknown as Date, {
-        horizonDays: HORIZON,
-      }),
-    ).toThrow(InvalidDateError);
-  });
-
-  it("rejects invalid lastDone Date", () => {
-    const bad = item({
-      id: "x",
-      cadence: { kind: "daily" },
-      lastDone: new Date("not-a-date"),
-    });
-    expect(() =>
-      evaluateItem(bad, NOW, { horizonDays: HORIZON }),
-    ).toThrow(InvalidDateError);
   });
 });
 
@@ -262,7 +243,7 @@ describe("stub status (handoff signal)", () => {
     const sample = item({
       id: "stub-check",
       cadence: { kind: "daily" } satisfies Cadence,
-      lastDone: new Date("2026-09-26T10:00:00.000Z"),
+      lastDone: Temporal.Instant.from("2026-09-26T10:00:00.000Z"),
     });
     try {
       evaluateItem(sample, NOW, { horizonDays: HORIZON });
@@ -273,8 +254,12 @@ describe("stub status (handoff signal)", () => {
     }
   });
 
-  it("fixedClock freezes time", () => {
-    const clock = fixedClock("2026-09-27T12:00:00.000Z");
-    expect(clock.now().toISOString()).toBe("2026-09-27T12:00:00.000Z");
+  it("fixedClock freezes Instant", () => {
+    const instant = Temporal.Instant.from("2026-09-27T12:00:00.000Z");
+    const clock = fixedClock(instant);
+    const a = clock.now();
+    const b = clock.now();
+    expect(a.equals(instant)).toBe(true);
+    expect(a.equals(b)).toBe(true);
   });
 });

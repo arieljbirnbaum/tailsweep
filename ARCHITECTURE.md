@@ -22,7 +22,7 @@ Dependencies point **inward only**:
 - `src/db` may import `@/engine` types (for mappers) — **never** the other way
 - `src/engine` must **never** import Next, React, Drizzle, `fs`, `fetch`, Node I/O, or anything under `src/app` / `src/db`
 
-If you need “today” inside the engine, take a `Date` argument or an injectable `Clock`. Do not call `new Date()` for business “now” inside evaluate\*.
+If you need “today” inside the engine, take a `Temporal.Instant` argument or an injectable `Clock`. Do **not** call `Temporal.Now` anywhere under `src/engine` (ESLint error). Production clock lives at `src/time/system-clock.ts` (or inline `{ now: () => Temporal.Now.instant() }` at the adapter edge).
 
 ## Due-engine contract (`src/engine`)
 
@@ -31,10 +31,10 @@ If you need “today” inside the engine, take a `Date` argument or an injectab
 | Concept | Notes |
 |--------|--------|
 | `Cadence` | `daily` / `weekly` / `monthly` / `quarterly` / `yearly` / `as_needed` / `{ kind: "every_n_days", days: N }` |
-| `CatalogItem` | `id`, `name`, `cadence`, `lastDone`, required `zone` (IANA id), `status: active\|paused` |
+| `CatalogItem` | `id`, `name`, `cadence`, `lastDone: Temporal.Instant \| null`, required `zone` (IANA id), `status: active\|paused` |
 | `DueState` | `due` \| `overdue` \| `upcoming` \| `not_applicable` |
 | `EvaluateOptions` | required `horizonDays: number` (no engine default; no `timeZone`) |
-| `Clock` | `{ now(): Date }` — inject at edges; use `fixedClock` in tests |
+| `Clock` | `{ now(): Temporal.Instant }` — inject at edges; `fixedClock` in tests; production `systemClock` at `src/time/system-clock.ts` (outside engine) |
 
 ### Functions (Ariel implements)
 
@@ -45,19 +45,27 @@ Stubs throw `NotImplementedError`. Contract tests in `evaluate.test.ts` define e
 
 ### Time & time zones
 
-- `now` and `lastDone` are **UTC instants** (`Date`). No silent coercion of strings/numbers — use `assertDate` / `InvalidDateError`.
-- **Calendar day boundaries** use **only** `item.zone` (required IANA id). No `options.timeZone`, no `"UTC"` default in evaluate\*.
+- Facts are **`Temporal.Instant`** (UTC) plus a required IANA **`item.zone`** string. No `Date` anywhere in the project (ESLint `@typescript-eslint/no-restricted-types` + `no-restricted-syntax` — use Temporal).
+- **`Temporal.Now` is banned under `src/engine/**`** (ESLint). Inject `Clock` or pass `Temporal.Instant` from the edge (`src/time/system-clock.ts`).
+- **Calendar day boundaries** use **only** `item.zone`: Instant → `ZonedDateTimeISO(item.zone)` → `PlainDate` → add cadence → start-of-day Instant in that zone. No `options.timeZone`, no `"UTC"` default in evaluate\*.
+- **`nextDue`**: Instant at **start of the local due day** in `item.zone`. When converting a PlainDate (or local midnight) to Instant across DST gaps/folds, use Temporal’s **`disambiguation: "compatible"`** (Temporal’s common default — name it explicitly in implementer code). Do not invent silent half-hour offsets.
 - UX/adapters supply `zone` on each catalog item and `horizonDays` on every evaluate\* call. The engine requires both; it does not pick a dogfood default.
 - `horizonDays` (required): how far ahead “upcoming” extends; beyond horizon → `not_applicable`.
+- Invalid Instant / zone strings: let Temporal construction throw (`TypeError` / `RangeError`). Adapters own validation — the engine does **not** expose `assertDate` / `InvalidDateError`.
+
+### Temporal polyfill & runtime
+
+- Engine imports `{ Temporal }` from `src/engine/temporal.ts`, which re-exports `@js-temporal/polyfill` (does **not** patch `globalThis`).
+- **Node 26+** has native Temporal; the polyfill is the portability layer for **Node 20/22** and browsers without Temporal. `package.json` engines: `"node": ">=20"`. Safari is not a design constraint.
 
 ### tzdata & local-date indexing
 
-- Persist facts as UTC instants (`lastDone`, completions) plus the IANA zone id on the catalog item.
+- Persist facts as UTC Instant strings (`lastDone`, completions) plus the IANA zone id on the catalog item.
 - Due state and `nextDue` are **derived at evaluate time**, not durable source of truth. Do not store due local dates as authoritative indexes in v1.
 - Calendar/.ics export is a **snapshot** under the tzdata rules of the runtime that generated it.
-- Runtime tzdata comes from the JS host (Node/V8 ICU or browser); the engine does not ship its own tzdb in v1. Node vs browser can diverge — dogfood/tests should pin Node version when asserting civil dates near political transitions.
-- On IANA/tzdata rule changes: re-running evaluate\* may change local calendar day / start-of-day Instant for the same UTC instant. That is accepted; do not rewrite historical completion instants. If a future feature indexes by local date, treat that index as a **cache** keyed by `(instant, zoneId, tzdataVersion)` or rebuild on tzdata bump — out of scope for v1.
-- Ambiguous/nonexistent local times (DST fold/gap): open for the implementer but must be explicit and tested (pick a library/Temporal behavior and lock it in tests); do not invent silent half-hour offsets.
+- Runtime tzdata comes from the host / polyfill (Node/V8 ICU or browser); the engine does not ship its own tzdb in v1. Node vs browser can diverge — dogfood/tests should pin Node version when asserting civil dates near political transitions.
+- On IANA/tzdata rule changes: re-running evaluate\* may change local calendar day / start-of-day Instant for the same UTC Instant. That is accepted; do not rewrite historical completion instants. If a future feature indexes by local date, treat that index as a **cache** keyed by `(instant, zoneId, tzdataVersion)` or rebuild on tzdata bump — out of scope for v1.
+- DST gaps/folds: Temporal disambiguation (`compatible` by default) is the policy; lock behavior in tests.
 
 ### State rules (completion-anchored)
 
@@ -77,15 +85,15 @@ Cadence increments (from lastDone’s local date):
 
 ## Debuggability
 
-- **Injectable clock** — no hidden `Date.now()` in evaluate\*.
-- **Typed errors** — `NotImplementedError`, `InvalidDateError`, `InvalidCadenceError` (codes on `.code`).
+- **Injectable clock** — no `Temporal.Now` / system time in `src/engine` (lint-enforced); production clock at `src/time/system-clock.ts`.
+- **Typed errors** — `NotImplementedError`, `InvalidCadenceError` (codes on `.code`). Temporal construction errors surface as-is.
 - **Table-driven tests** — one row per behavior; failures name the case.
-- **No silent date coercion** — invalid dates throw.
+- **No silent Instant coercion** — bad strings throw from Temporal; adapters validate at the edge.
 
 ## DB layer (`src/db`)
 
 - Stores **facts**: catalog rows + append-only `completions`.
-- `cadence_json` / `last_done_at` are persistence shapes; map to/from engine types in adapters.
+- `cadence_json` / `last_done_at` are persistence shapes; map to/from engine types in adapters (`last_done_at` ISO Instant string ↔ `Temporal.Instant`).
 - **Never** compute `DueState` in SQL or Drizzle queries.
 
 ## Naming conventions
@@ -100,6 +108,7 @@ Cadence increments (from lastDone’s local date):
 - [ ] Engine still has **zero** Next/React/Drizzle/fs/fetch imports (`rg` the folder).
 - [ ] New due behavior covered by a table row in `evaluate.test.ts`.
 - [ ] `pnpm typecheck` && `pnpm lint` && `pnpm test` (tests green once engine is implemented).
-- [ ] Dates are `Date` instants; every `CatalogItem` has required `zone`; every evaluate\* call passes `horizonDays`.
+- [ ] Times are `Temporal.Instant`; every `CatalogItem` has required `zone`; every evaluate\* call passes `horizonDays`.
+- [ ] Lint enforces **no `Date`** (repo-wide) and **no `Temporal.Now`** under `src/engine/**`; production clock stays outside the engine (`src/time/system-clock.ts`).
 - [ ] No due math added to `src/db`.
 - [ ] README / ARCHITECTURE updated if the contract changed.

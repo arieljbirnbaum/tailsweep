@@ -7,6 +7,7 @@ Last done + cadence → what’s due (optional calendar holds). Not a habit RPG.
 ## Stack
 
 - TypeScript (strict)
+- Temporal (`@js-temporal/polyfill`; native on Node 26+)
 - Next.js (App Router)
 - React
 - Tailwind CSS
@@ -37,7 +38,7 @@ pnpm typecheck && pnpm lint && pnpm test
 
 ## Architecture
 
-See **[ARCHITECTURE.md](./ARCHITECTURE.md)** for layering, engine purity rules, time-zone assumptions (UTC instants + required IANA `zone` on items; adapters supply zone + `horizonDays`), and the PR checklist.
+See **[ARCHITECTURE.md](./ARCHITECTURE.md)** for layering, engine purity rules, time-zone assumptions (`Temporal.Instant` + required IANA `zone` on items; adapters supply zone + `horizonDays`; `@js-temporal/polyfill` for Node 20/22), and the PR checklist.
 
 Short contributor notes: **[CONTRIBUTING.md](./CONTRIBUTING.md)**.
 
@@ -67,7 +68,8 @@ Stubs throw `NotImplementedError` so the harness is honest: red tests mean “no
 ## Key paths
 
 ```
-src/engine/     pure due-engine (types, clock, evaluate stubs, contract tests)
+src/engine/     pure due-engine (types, fixedClock, evaluate stubs, contract tests; no Temporal.Now)
+src/time/       edge clocks (systemClock) — inject into adapters/UI
 src/db/         Drizzle schema + libsql client (no due math)
 src/app/        Next.js UI shell
 ARCHITECTURE.md layering & contract
