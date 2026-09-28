@@ -255,17 +255,12 @@ describe("stub status (handoff signal)", () => {
   });
 
   it("fixedClock freezes Instant", () => {
-    const clock = fixedClock("2026-09-27T12:00:00.000Z");
-    const a = clock.now();
-    const b = clock.now();
-    expect(a.toString()).toBe("2026-09-27T12:00:00Z");
-    expect(a.equals(b)).toBe(true);
-    expect(a).toBe(b); // same frozen Instant reference
-  });
-
-  it("fixedClock accepts Temporal.Instant", () => {
     const instant = Temporal.Instant.from("2026-09-27T12:00:00.000Z");
     const clock = fixedClock(instant);
-    expect(clock.now().equals(instant)).toBe(true);
+    const a = clock.now();
+    const b = clock.now();
+    expect(a.equals(instant)).toBe(true);
+    expect(a.equals(b)).toBe(true);
+    expect(a).toBe(b); // same frozen Instant reference
   });
 });

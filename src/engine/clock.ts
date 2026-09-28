@@ -10,16 +10,13 @@ export const systemClock: Clock = {
 
 /**
  * Fixed clock for tests and deterministic replays.
- * Accepts a Temporal.Instant or an ISO Instant string (`Temporal.Instant.from`).
+ * Callers pass a Temporal.Instant (parse ISO strings at the call site).
  * Instants are immutable — `now()` returns the same frozen Instant each call.
- * Bad Instant strings: `Temporal.Instant.from` throws (TypeError / RangeError).
  */
-export function fixedClock(input: Temporal.Instant | string): Clock {
-  const frozen =
-    typeof input === "string" ? Temporal.Instant.from(input) : input;
+export function fixedClock(instant: Temporal.Instant): Clock {
   return {
     now(): Temporal.Instant {
-      return frozen;
+      return instant;
     },
   };
 }
