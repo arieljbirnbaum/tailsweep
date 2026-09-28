@@ -15,12 +15,13 @@ import {
  * 1. Paused → not_applicable, nextDue null.
  * 2. as_needed + lastDone set → not_applicable (nextDue null); as_needed +
  *    never done → due (nextDue = start of today in item.zone).
- * 3. Completion-anchored calendar path: Instant → ZonedDateTimeISO(item.zone)
- *    → add cadence Duration → startOfDay → Instant. ZDT.add / startOfDay use
- *    Temporal’s default disambiguation `compatible`. The SOD Instant is what
- *    the contract compares. Scheduled never done → overdue (nextDue = start of
- *    today in item.zone).
- * 4. Compare next-due SOD to "today" SOD in zone:
+ * 3. Completion-anchored calendar intent: cadence advances on the item’s local
+ *    civil calendar in `item.zone`; `nextDue` is the Instant at start of that
+ *    due local day. Contract check: Instant.equals on SOD Instants. Midnight/DST
+ *    uses Temporal’s default disambiguation `compatible` (lock in tests). Not a
+ *    prescribed Instant→ZDT→add→startOfDay / PlainDate call pipeline. Scheduled
+ *    never done → overdue (nextDue = start of today in item.zone).
+ * 4. Compare next-due SOD Instant to "today" SOD Instant in zone:
  *    before today → overdue; today → due; after today within horizon → upcoming;
  *    after horizon → not_applicable.
  *
