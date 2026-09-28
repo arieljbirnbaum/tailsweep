@@ -7,12 +7,7 @@ import type { Temporal } from "./temporal";
 
 /** Named cadence kinds (calendar-aligned). */
 export type NamedCadenceKind =
-  | "daily"
-  | "weekly"
-  | "monthly"
-  | "quarterly"
-  | "yearly"
-  | "as_needed";
+  "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | "as_needed";
 
 /** Fixed interval of N calendar days (completion-anchored). */
 export type EveryNDaysCadence = {
