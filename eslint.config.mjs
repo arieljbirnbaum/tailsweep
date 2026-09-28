@@ -21,6 +21,15 @@ const eslintConfig = defineConfig([
   ]),
   {
     rules: {
+      // Type-only imports must use `import type` (stricter module boundary).
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        {
+          prefer: "type-imports",
+          fixStyle: "separate-type-imports",
+          disallowTypeAnnotations: false,
+        },
+      ],
       // Prefer explicit types at engine boundaries; keep lint quiet for UI stubs.
       "@typescript-eslint/no-unused-vars": [
         "warn",

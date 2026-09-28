@@ -36,12 +36,12 @@ If you need “today” inside the engine, take a `Temporal.Instant` argument or
 | `EvaluateOptions` | required `horizonDays: number` (no engine default; no `timeZone`) |
 | `Clock` | `{ now(): Temporal.Instant }` — inject at edges; `fixedClock` in tests; production `systemClock` at `src/time/system-clock.ts` (outside engine) |
 
-### Functions (Ariel implements)
+### Functions
 
 - `evaluateItem(item, now, options)` → `EvaluatedItem`
 - `evaluateCatalog(items, now, options)` → `EvaluatedItem[]` (same order as input)
 
-Stubs throw `NotImplementedError`. Contract tests in `evaluate.test.ts` define expected states — **make those green**.
+Behavioral rules live in `src/engine/contract-rules.ts` (IDs). `evaluate.test.ts` cases each declare `covers: [...]`; a meta-test fails if any `enforced: "test"` rule is uncovered (**contract** coverage, not line coverage). When you change state/cadence/`nextDue` rules, update both the rule registry and a table row.
 
 ### Time & time zones
 
@@ -106,7 +106,7 @@ Cadence increments (from lastDone’s local date):
 ## PR checklist
 
 - [ ] Engine still has **zero** Next/React/Drizzle/fs/fetch imports (`rg` the folder).
-- [ ] New due behavior covered by a table row in `evaluate.test.ts`.
+- [ ] New due behavior: add/adjust a `contract-rules.ts` id and a table row with `covers` (meta-test must stay green).
 - [ ] `pnpm typecheck` && `pnpm lint` && `pnpm test` (tests green once engine is implemented).
 - [ ] Times are `Temporal.Instant`; every `CatalogItem` has required `zone`; every evaluate\* call passes `horizonDays`.
 - [ ] Lint enforces **no `Date`** (repo-wide) and **no `Temporal.Now`** under `src/engine/**`; production clock stays outside the engine (`src/time/system-clock.ts`).
