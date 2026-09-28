@@ -31,23 +31,33 @@ If you need “today” inside the engine, take a `Date` argument or an injectab
 | Concept | Notes |
 |--------|--------|
 | `Cadence` | `daily` / `weekly` / `monthly` / `quarterly` / `yearly` / `as_needed` / `{ kind: "every_n_days", days: N }` |
-| `CatalogItem` | `id`, `name`, `cadence`, `lastDone`, optional `zone`, `status: active\|paused` |
+| `CatalogItem` | `id`, `name`, `cadence`, `lastDone`, required `zone` (IANA id), `status: active\|paused` |
 | `DueState` | `due` \| `overdue` \| `upcoming` \| `not_applicable` |
+| `EvaluateOptions` | required `horizonDays: number` (no engine default; no `timeZone`) |
 | `Clock` | `{ now(): Date }` — inject at edges; use `fixedClock` in tests |
 
 ### Functions (Ariel implements)
 
-- `evaluateItem(item, now, options?)` → `EvaluatedItem`
-- `evaluateCatalog(items, now, options?)` → `EvaluatedItem[]` (same order as input)
+- `evaluateItem(item, now, options)` → `EvaluatedItem`
+- `evaluateCatalog(items, now, options)` → `EvaluatedItem[]` (same order as input)
 
 Stubs throw `NotImplementedError`. Contract tests in `evaluate.test.ts` define expected states — **make those green**.
 
 ### Time & time zones
 
 - `now` and `lastDone` are **UTC instants** (`Date`). No silent coercion of strings/numbers — use `assertDate` / `InvalidDateError`.
-- **Calendar day boundaries** use an IANA zone: `item.zone ?? options.timeZone ?? "UTC"`.
-- Dogfood assumption for Ariel (Europe/Berlin): pass `timeZone: "Europe/Berlin"` (or set `item.zone`) at the adapter boundary. The engine default remains `"UTC"` so pure unit tests stay explicit.
-- `horizonDays` (default **7**): how far ahead “upcoming” extends; beyond horizon → `not_applicable`.
+- **Calendar day boundaries** use **only** `item.zone` (required IANA id). No `options.timeZone`, no `"UTC"` default in evaluate\*.
+- UX/adapters supply `zone` on each catalog item and `horizonDays` on every evaluate\* call. The engine requires both; it does not pick a dogfood default.
+- `horizonDays` (required): how far ahead “upcoming” extends; beyond horizon → `not_applicable`.
+
+### tzdata & local-date indexing
+
+- Persist facts as UTC instants (`lastDone`, completions) plus the IANA zone id on the catalog item.
+- Due state and `nextDue` are **derived at evaluate time**, not durable source of truth. Do not store due local dates as authoritative indexes in v1.
+- Calendar/.ics export is a **snapshot** under the tzdata rules of the runtime that generated it.
+- Runtime tzdata comes from the JS host (Node/V8 ICU or browser); the engine does not ship its own tzdb in v1. Node vs browser can diverge — dogfood/tests should pin Node version when asserting civil dates near political transitions.
+- On IANA/tzdata rule changes: re-running evaluate\* may change local calendar day / start-of-day Instant for the same UTC instant. That is accepted; do not rewrite historical completion instants. If a future feature indexes by local date, treat that index as a **cache** keyed by `(instant, zoneId, tzdataVersion)` or rebuild on tzdata bump — out of scope for v1.
+- Ambiguous/nonexistent local times (DST fold/gap): open for the implementer but must be explicit and tested (pick a library/Temporal behavior and lock it in tests); do not invent silent half-hour offsets.
 
 ### State rules (completion-anchored)
 
@@ -90,6 +100,6 @@ Cadence increments (from lastDone’s local date):
 - [ ] Engine still has **zero** Next/React/Drizzle/fs/fetch imports (`rg` the folder).
 - [ ] New due behavior covered by a table row in `evaluate.test.ts`.
 - [ ] `pnpm typecheck` && `pnpm lint` && `pnpm test` (tests green once engine is implemented).
-- [ ] Dates are `Date` instants; zone choice documented at call site.
+- [ ] Dates are `Date` instants; every `CatalogItem` has required `zone`; every evaluate\* call passes `horizonDays`.
 - [ ] No due math added to `src/db`.
 - [ ] README / ARCHITECTURE updated if the contract changed.

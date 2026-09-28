@@ -18,15 +18,15 @@ import type {
  * 5. Compare next-due local calendar date to "today" in zone:
  *    before today → overdue; today → due; after today within horizon → upcoming;
  *    after horizon → not_applicable.
- * 6. Zone: item.zone ?? options.timeZone ?? "UTC".
- * 7. horizonDays default 7.
+ * 6. Zone: only `item.zone` (required IANA id). No options.timeZone, no "UTC" default.
+ * 7. `options.horizonDays` is required (no engine default).
  *
  * @see ARCHITECTURE.md and evaluate.test.ts for the full table-driven contract.
  */
 export function evaluateItem(
   item: CatalogItem,
   now: Date,
-  options?: EvaluateOptions,
+  options: EvaluateOptions,
 ): EvaluatedItem {
   assertDate("now", now);
   if (item.lastDone !== null) {
@@ -44,7 +44,7 @@ export function evaluateItem(
 export function evaluateCatalog(
   items: readonly CatalogItem[],
   now: Date,
-  options?: EvaluateOptions,
+  options: EvaluateOptions,
 ): EvaluatedItem[] {
   assertDate("now", now);
   return items.map((item) => evaluateItem(item, now, options));

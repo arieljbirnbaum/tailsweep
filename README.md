@@ -37,7 +37,7 @@ pnpm typecheck && pnpm lint && pnpm test
 
 ## Architecture
 
-See **[ARCHITECTURE.md](./ARCHITECTURE.md)** for layering, engine purity rules, time-zone assumptions (UTC instants + IANA day boundaries; dogfood `Europe/Berlin`), and the PR checklist.
+See **[ARCHITECTURE.md](./ARCHITECTURE.md)** for layering, engine purity rules, time-zone assumptions (UTC instants + required IANA `zone` on items; adapters supply zone + `horizonDays`), and the PR checklist.
 
 Short contributor notes: **[CONTRIBUTING.md](./CONTRIBUTING.md)**.
 
