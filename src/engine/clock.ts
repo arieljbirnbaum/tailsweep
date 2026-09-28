@@ -10,7 +10,6 @@ export const systemClock: Clock = {
 
 /**
  * Fixed clock for tests and deterministic replays.
- * Callers pass a Temporal.Instant (parse ISO strings at the call site).
  * Instants are immutable — `now()` returns the same frozen Instant each call.
  */
 export function fixedClock(instant: Temporal.Instant): Clock {
