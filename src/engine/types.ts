@@ -7,12 +7,7 @@ import type { Temporal } from "./temporal";
 
 /** Named cadence kinds (calendar-aligned). */
 export type NamedCadenceKind =
-  | "daily"
-  | "weekly"
-  | "monthly"
-  | "quarterly"
-  | "yearly"
-  | "as_needed";
+  "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | "as_needed";
 
 /** Fixed interval of N calendar days (completion-anchored). */
 export type EveryNDaysCadence = {
@@ -36,9 +31,10 @@ export type CatalogItemStatus = "active" | "paused";
 
 /**
  * A catalog (chore/routine) item.
- * `lastDone` is a Temporal.Instant (UTC). Calendar-day math uses required `zone`:
- * Instant → ZonedDateTimeISO(item.zone) → PlainDate → add cadence →
- * start-of-day Instant in that zone.
+ * `lastDone` is a Temporal.Instant (UTC). Cadence advances on the item’s local
+ * civil calendar in required `zone`; `nextDue` is the Instant at start of that
+ * due local day in `zone`. Contract check: Instant.equals on SOD Instants.
+ * (Intent, not a prescribed Instant→ZDT→add→startOfDay / PlainDate pipeline.)
  */
 export type CatalogItem = {
   readonly id: string;

@@ -1,24 +1,20 @@
 /**
- * Contract tests for the due-engine.
+ * Behavioral tests for the due-engine.
  *
- * These assert the BEHAVIOR Ariel must implement. evaluateItem currently
- * throws NotImplementedError — expect red until the engine is filled in.
+ * Prefer Instant.equals for nextDue — state-only rows miss SOD vs wall-clock bugs.
  *
  * Run: pnpm test
- * Goal: make this file green without changing the assertions (unless the
- * product contract itself changes — then update ARCHITECTURE.md too).
  */
 
 import { describe, expect, it } from "vitest";
 import { evaluateItem, evaluateCatalog } from "./evaluate";
-import { fixedClock } from "./clock";
-import { NotImplementedError } from "./errors";
 import { Temporal } from "./temporal";
-import type { CatalogItem, Cadence, DueState } from "./types";
+import type { CatalogItem, DueState } from "./types";
 
 const ZONE = "Europe/Berlin";
 const HORIZON = 7;
-const NOW = Temporal.Instant.from("2026-09-27T12:00:00.000Z"); // Sun afternoon UTC ≈ Berlin CEST
+/** Sun afternoon UTC ≈ Berlin CEST (local calendar date 2026-09-27). */
+const NOW = Temporal.Instant.from("2026-09-27T12:00:00.000Z");
 
 function item(
   overrides: Partial<CatalogItem> & Pick<CatalogItem, "id" | "cadence">,
@@ -32,30 +28,43 @@ function item(
   };
 }
 
+/** Start-of-day Instant for `instant`'s local calendar date in `zone`. */
+function startOfLocalDay(
+  instant: Temporal.Instant,
+  zone: string = ZONE,
+): Temporal.Instant {
+  return instant.toZonedDateTimeISO(zone).startOfDay().toInstant();
+}
+
+/** Start-of-day Instant for a PlainDate (YYYY-MM-DD) in zone. */
+function sod(plainDate: string, zone: string = ZONE): Temporal.Instant {
+  return Temporal.PlainDate.from(plainDate)
+    .toZonedDateTime({ timeZone: zone, plainTime: "00:00" })
+    .toInstant();
+}
+
 type Case = {
   name: string;
   item: CatalogItem;
   now?: Temporal.Instant;
   horizonDays?: number;
   wantState: DueState;
+  /**
+   * When set: assert Instant.equals (or null).
+   * Omit only for rows that intentionally skip nextDue (prefer not to).
+   */
+  wantNextDue: Temporal.Instant | null;
 };
 
+const TODAY_SOD = startOfLocalDay(NOW);
+
 /**
- * Table-driven contract. Instants below are chosen so Europe/Berlin local
- * calendar dates are unambiguous (midday UTC → afternoon CEST).
- *
- * Semantics (must match ARCHITECTURE.md):
- * - Paused → not_applicable
- * - as_needed + lastDone → not_applicable; never done → due
- * - Never done (scheduled cadence) → overdue
- * - nextDue local date vs today: before=overdue, same=due, after within horizon=upcoming, beyond=not_applicable
- * - daily: next = lastDone local date + 1 day
- * - weekly: +7 days; monthly: +1 calendar month; quarterly: +3 months; yearly: +1 year
- * - every_n_days: +N days from lastDone local date
+ * Table-driven contract. Instants chosen so Europe/Berlin local dates are
+ * unambiguous (midday UTC → afternoon CEST).
  */
 const cases: Case[] = [
   {
-    name: "paused is always not_applicable",
+    name: "paused is always not_applicable with null nextDue",
     item: item({
       id: "paused-daily",
       cadence: { kind: "daily" },
@@ -63,61 +72,67 @@ const cases: Case[] = [
       status: "paused",
     }),
     wantState: "not_applicable",
+    wantNextDue: null,
   },
   {
-    name: "as_needed with prior completion → not_applicable",
+    name: "as_needed with prior completion → not_applicable, null nextDue",
     item: item({
       id: "as-needed-done",
       cadence: { kind: "as_needed" },
       lastDone: Temporal.Instant.from("2026-01-01T10:00:00.000Z"),
     }),
     wantState: "not_applicable",
+    wantNextDue: null,
   },
   {
-    name: "as_needed never done → due",
+    name: "as_needed never done → due; nextDue = today SOD",
     item: item({
       id: "as-needed-new",
       cadence: { kind: "as_needed" },
       lastDone: null,
     }),
     wantState: "due",
+    wantNextDue: TODAY_SOD,
   },
   {
-    name: "daily never done → overdue",
+    name: "daily never done → overdue; nextDue = today SOD (not wall-clock now)",
     item: item({
       id: "daily-new",
       cadence: { kind: "daily" },
       lastDone: null,
     }),
     wantState: "overdue",
+    wantNextDue: TODAY_SOD,
   },
   {
-    name: "daily lastDone yesterday → due today",
+    name: "daily lastDone yesterday → due today; nextDue = today SOD",
     item: item({
       id: "daily-yday",
       cadence: { kind: "daily" },
-      // 2026-09-26 local Berlin
       lastDone: Temporal.Instant.from("2026-09-26T10:00:00.000Z"),
     }),
     wantState: "due",
+    wantNextDue: TODAY_SOD,
   },
   {
-    name: "daily lastDone two days ago → overdue",
+    name: "daily lastDone two days ago → overdue; nextDue = that due day's SOD",
     item: item({
       id: "daily-old",
       cadence: { kind: "daily" },
       lastDone: Temporal.Instant.from("2026-09-25T10:00:00.000Z"),
     }),
     wantState: "overdue",
+    wantNextDue: sod("2026-09-26"),
   },
   {
-    name: "daily lastDone today → upcoming (due tomorrow, within horizon)",
+    name: "daily lastDone today → upcoming tomorrow within horizon",
     item: item({
       id: "daily-today",
       cadence: { kind: "daily" },
       lastDone: Temporal.Instant.from("2026-09-27T08:00:00.000Z"),
     }),
     wantState: "upcoming",
+    wantNextDue: sod("2026-09-28"),
   },
   {
     name: "weekly lastDone 3 days ago → upcoming (due in 4 days)",
@@ -127,6 +142,7 @@ const cases: Case[] = [
       lastDone: Temporal.Instant.from("2026-09-24T10:00:00.000Z"),
     }),
     wantState: "upcoming",
+    wantNextDue: sod("2026-10-01"),
   },
   {
     name: "weekly lastDone 7 days ago → due",
@@ -136,6 +152,7 @@ const cases: Case[] = [
       lastDone: Temporal.Instant.from("2026-09-20T10:00:00.000Z"),
     }),
     wantState: "due",
+    wantNextDue: TODAY_SOD,
   },
   {
     name: "weekly lastDone 10 days ago → overdue",
@@ -145,6 +162,7 @@ const cases: Case[] = [
       lastDone: Temporal.Instant.from("2026-09-17T10:00:00.000Z"),
     }),
     wantState: "overdue",
+    wantNextDue: sod("2026-09-24"),
   },
   {
     name: "every_n_days(3) lastDone 3 days ago → due",
@@ -154,9 +172,10 @@ const cases: Case[] = [
       lastDone: Temporal.Instant.from("2026-09-24T10:00:00.000Z"),
     }),
     wantState: "due",
+    wantNextDue: TODAY_SOD,
   },
   {
-    name: "every_n_days(14) lastDone yesterday → beyond default horizon → not_applicable",
+    name: "every_n_days(14) beyond horizon 7 → not_applicable",
     item: item({
       id: "n14-far",
       cadence: { kind: "every_n_days", days: 14 },
@@ -164,6 +183,8 @@ const cases: Case[] = [
     }),
     horizonDays: 7,
     wantState: "not_applicable",
+    // Still a concrete due Instant; state is beyond horizon.
+    wantNextDue: sod("2026-10-10"),
   },
   {
     name: "every_n_days(14) within extended horizon → upcoming",
@@ -174,6 +195,30 @@ const cases: Case[] = [
     }),
     horizonDays: 20,
     wantState: "upcoming",
+    wantNextDue: sod("2026-10-10"),
+  },
+  {
+    name: "horizon inclusive: nextDue local date === today+horizon → upcoming",
+    item: item({
+      id: "horizon-eq",
+      cadence: { kind: "every_n_days", days: 7 },
+      // lastDone local 2026-09-27 → next 2026-10-04 === today+7
+      lastDone: Temporal.Instant.from("2026-09-27T08:00:00.000Z"),
+    }),
+    horizonDays: 7,
+    wantState: "upcoming",
+    wantNextDue: sod("2026-10-04"),
+  },
+  {
+    name: "horizon exclusive beyond: nextDue === today+horizon+1 → not_applicable",
+    item: item({
+      id: "horizon-gt",
+      cadence: { kind: "every_n_days", days: 8 },
+      lastDone: Temporal.Instant.from("2026-09-27T08:00:00.000Z"),
+    }),
+    horizonDays: 7,
+    wantState: "not_applicable",
+    wantNextDue: sod("2026-10-05"),
   },
   {
     name: "monthly lastDone same day last month → due",
@@ -183,6 +228,7 @@ const cases: Case[] = [
       lastDone: Temporal.Instant.from("2026-08-27T10:00:00.000Z"),
     }),
     wantState: "due",
+    wantNextDue: TODAY_SOD,
   },
   {
     name: "yearly lastDone last year same calendar day → due",
@@ -192,6 +238,7 @@ const cases: Case[] = [
       lastDone: Temporal.Instant.from("2025-09-27T10:00:00.000Z"),
     }),
     wantState: "due",
+    wantNextDue: TODAY_SOD,
   },
   {
     name: "quarterly lastDone ~3 months ago → due",
@@ -201,6 +248,114 @@ const cases: Case[] = [
       lastDone: Temporal.Instant.from("2026-06-27T10:00:00.000Z"),
     }),
     wantState: "due",
+    wantNextDue: TODAY_SOD,
+  },
+  {
+    name: "monthly lastDone such that next is yesterday → overdue",
+    item: item({
+      id: "monthly-over",
+      cadence: { kind: "monthly" },
+      lastDone: Temporal.Instant.from("2026-08-26T10:00:00.000Z"),
+    }),
+    wantState: "overdue",
+    wantNextDue: sod("2026-09-26"),
+  },
+  {
+    name: "monthly lastDone such that next is in a few days within horizon → upcoming",
+    item: item({
+      id: "monthly-upcoming",
+      cadence: { kind: "monthly" },
+      lastDone: Temporal.Instant.from("2026-08-30T10:00:00.000Z"),
+    }),
+    wantState: "upcoming",
+    wantNextDue: sod("2026-09-30"),
+  },
+  {
+    name: "quarterly lastDone such that next is yesterday → overdue",
+    item: item({
+      id: "quarterly-over",
+      cadence: { kind: "quarterly" },
+      lastDone: Temporal.Instant.from("2026-06-26T10:00:00.000Z"),
+    }),
+    wantState: "overdue",
+    wantNextDue: sod("2026-09-26"),
+  },
+  {
+    name: "yearly lastDone such that next is in a few days within horizon → upcoming",
+    item: item({
+      id: "yearly-upcoming",
+      cadence: { kind: "yearly" },
+      lastDone: Temporal.Instant.from("2025-09-30T10:00:00.000Z"),
+    }),
+    wantState: "upcoming",
+    wantNextDue: sod("2026-09-30"),
+  },
+  // --- DST lock-in (Europe/Berlin): spring gap / fall fold SOD Instants ---
+  {
+    name: "DST spring: daily across Berlin spring-forward → due; nextDue = local 2026-03-29 SOD (CEST)",
+    item: item({
+      id: "dst-spring-daily",
+      cadence: { kind: "daily" },
+      lastDone: Temporal.Instant.from("2026-03-28T12:00:00.000Z"),
+      zone: "Europe/Berlin",
+    }),
+    now: Temporal.Instant.from("2026-03-29T12:00:00.000Z"),
+    wantState: "due",
+    // Verified via polyfill: local midnight 2026-03-29 Berlin = 2026-03-28T23:00:00Z
+    wantNextDue: sod("2026-03-29", "Europe/Berlin"),
+  },
+  {
+    name: "DST fall: daily across Berlin fall-back → due; nextDue = local 2026-10-25 SOD (CET)",
+    item: item({
+      id: "dst-fall-daily",
+      cadence: { kind: "daily" },
+      lastDone: Temporal.Instant.from("2026-10-24T12:00:00.000Z"),
+      zone: "Europe/Berlin",
+    }),
+    now: Temporal.Instant.from("2026-10-25T12:00:00.000Z"),
+    wantState: "due",
+    // Verified via polyfill: local midnight 2026-10-25 Berlin = 2026-10-24T22:00:00Z
+    wantNextDue: sod("2026-10-25", "Europe/Berlin"),
+  },
+  // --- Zone diversity ---
+  {
+    name: "America/Los_Angeles daily lastDone yesterday → due; nextDue = LA SOD (not Berlin)",
+    item: item({
+      id: "la-daily-due",
+      cadence: { kind: "daily" },
+      lastDone: Temporal.Instant.from("2026-09-26T19:00:00.000Z"),
+      zone: "America/Los_Angeles",
+    }),
+    now: Temporal.Instant.from("2026-09-27T19:00:00.000Z"),
+    wantState: "due",
+    // LA local 2026-09-27 midnight PDT = 2026-09-27T07:00:00Z (≠ Berlin SOD)
+    wantNextDue: sod("2026-09-27", "America/Los_Angeles"),
+  },
+  {
+    name: "civil-date split: near-UTC-midnight Instant — Berlin local date ≠ UTC date → due with Berlin SOD",
+    item: item({
+      id: "civil-split-berlin",
+      cadence: { kind: "daily" },
+      // lastDone local Berlin 2026-09-27 → next = Berlin 2026-09-28 SOD
+      lastDone: Temporal.Instant.from("2026-09-27T12:00:00.000Z"),
+      zone: "Europe/Berlin",
+    }),
+    // 2026-09-28T01:00Z = Berlin 03:00 Sep 28 / LA 18:00 Sep 27 — Berlin date ≠ UTC date
+    now: Temporal.Instant.from("2026-09-28T01:00:00.000Z"),
+    wantState: "due",
+    wantNextDue: sod("2026-09-28", "Europe/Berlin"),
+  },
+  {
+    name: "civil-date split: same Instant under LA — still Sep 27 locally → upcoming (next = LA Sep 28 SOD)",
+    item: item({
+      id: "civil-split-la",
+      cadence: { kind: "daily" },
+      lastDone: Temporal.Instant.from("2026-09-27T12:00:00.000Z"),
+      zone: "America/Los_Angeles",
+    }),
+    now: Temporal.Instant.from("2026-09-28T01:00:00.000Z"),
+    wantState: "upcoming",
+    wantNextDue: sod("2026-09-28", "America/Los_Angeles"),
   },
 ];
 
@@ -211,6 +366,12 @@ describe("evaluateItem contract", () => {
     });
     expect(result.itemId).toBe(c.item.id);
     expect(result.state).toBe(c.wantState);
+    if (c.wantNextDue === null) {
+      expect(result.nextDue).toBeNull();
+    } else {
+      expect(result.nextDue).not.toBeNull();
+      expect(result.nextDue!.equals(c.wantNextDue)).toBe(true);
+    }
   });
 });
 
@@ -231,35 +392,7 @@ describe("evaluateCatalog contract", () => {
     const results = evaluateCatalog(items, NOW, { horizonDays: HORIZON });
     expect(results.map((r) => r.itemId)).toEqual(["a", "b"]);
     expect(results[0]?.state).toBe("not_applicable");
+    expect(results[0]?.nextDue).toBeNull();
     expect(results[1]?.state).toBe("due");
-  });
-});
-
-describe("stub status (handoff signal)", () => {
-  it("evaluateItem still throws NotImplemented until Ariel lands logic", () => {
-    // If this passes, stubs were replaced — great. If it fails because
-    // implementation returns values, the contract tests above are the source of truth.
-    // This test documents the scaffold state; skip once implemented.
-    const sample = item({
-      id: "stub-check",
-      cadence: { kind: "daily" } satisfies Cadence,
-      lastDone: Temporal.Instant.from("2026-09-26T10:00:00.000Z"),
-    });
-    try {
-      evaluateItem(sample, NOW, { horizonDays: HORIZON });
-      // Implemented: no throw. Contract tests above must be green.
-      expect(true).toBe(true);
-    } catch (e) {
-      expect(e).toBeInstanceOf(NotImplementedError);
-    }
-  });
-
-  it("fixedClock freezes Instant", () => {
-    const instant = Temporal.Instant.from("2026-09-27T12:00:00.000Z");
-    const clock = fixedClock(instant);
-    const a = clock.now();
-    const b = clock.now();
-    expect(a.equals(instant)).toBe(true);
-    expect(a.equals(b)).toBe(true);
   });
 });
