@@ -16,6 +16,7 @@ import { InvalidDateError, NotImplementedError } from "./errors";
 import type { CatalogItem, Cadence, DueState } from "./types";
 
 const ZONE = "Europe/Berlin";
+const HORIZON = 7;
 const NOW = new Date("2026-09-27T12:00:00.000Z"); // Sun afternoon UTC ≈ Berlin CEST
 
 function item(
@@ -35,7 +36,6 @@ type Case = {
   item: CatalogItem;
   now?: Date;
   horizonDays?: number;
-  timeZone?: string;
   wantState: DueState;
 };
 
@@ -206,8 +206,7 @@ const cases: Case[] = [
 describe("evaluateItem contract", () => {
   it.each(cases)("$name", (c) => {
     const result = evaluateItem(c.item, c.now ?? NOW, {
-      horizonDays: c.horizonDays,
-      timeZone: c.timeZone ?? ZONE,
+      horizonDays: c.horizonDays ?? HORIZON,
     });
     expect(result.itemId).toBe(c.item.id);
     expect(result.state).toBe(c.wantState);
@@ -216,7 +215,9 @@ describe("evaluateItem contract", () => {
   it("rejects non-Date now without coercion", () => {
     const bad = item({ id: "x", cadence: { kind: "daily" } });
     expect(() =>
-      evaluateItem(bad, "2026-09-27" as unknown as Date),
+      evaluateItem(bad, "2026-09-27" as unknown as Date, {
+        horizonDays: HORIZON,
+      }),
     ).toThrow(InvalidDateError);
   });
 
@@ -226,7 +227,9 @@ describe("evaluateItem contract", () => {
       cadence: { kind: "daily" },
       lastDone: new Date("not-a-date"),
     });
-    expect(() => evaluateItem(bad, NOW)).toThrow(InvalidDateError);
+    expect(() =>
+      evaluateItem(bad, NOW, { horizonDays: HORIZON }),
+    ).toThrow(InvalidDateError);
   });
 });
 
@@ -244,7 +247,7 @@ describe("evaluateCatalog contract", () => {
         lastDone: null,
       }),
     ];
-    const results = evaluateCatalog(items, NOW, { timeZone: ZONE });
+    const results = evaluateCatalog(items, NOW, { horizonDays: HORIZON });
     expect(results.map((r) => r.itemId)).toEqual(["a", "b"]);
     expect(results[0]?.state).toBe("not_applicable");
     expect(results[1]?.state).toBe("due");
@@ -262,7 +265,7 @@ describe("stub status (handoff signal)", () => {
       lastDone: new Date("2026-09-26T10:00:00.000Z"),
     });
     try {
-      evaluateItem(sample, NOW, { timeZone: ZONE });
+      evaluateItem(sample, NOW, { horizonDays: HORIZON });
       // Implemented: no throw. Contract tests above must be green.
       expect(true).toBe(true);
     } catch (e) {

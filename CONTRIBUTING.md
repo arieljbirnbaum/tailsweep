@@ -29,7 +29,7 @@ pnpm lint
 
 ## Time zone note
 
-Ariel is in **Europe/Berlin**. Pass that zone from adapters/UI when evaluating. Engine tests use `Europe/Berlin` explicitly. Default inside evaluate* if nothing is passed: `"UTC"`.
+Adapters/UI pass an IANA `zone` on every catalog item and `horizonDays` on every evaluate\* call. The engine has **no** default zone or horizon. Tests set `zone` explicitly on fixtures (e.g. `Europe/Berlin`).
 
 ## Commits
 
@@ -37,7 +37,7 @@ Clear, imperative subjects. Examples:
 
 - `feat(engine): implement daily/weekly evaluateItem`
 - `test(engine): add monthly edge cases for month-end`
-- `docs: clarify horizon default`
+- `docs: clarify required zone and horizonDays`
 
 ## PR checklist
 

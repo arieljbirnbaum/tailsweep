@@ -25,7 +25,7 @@ export type NamedCadence = {
 
 /**
  * How often an item should be completed again after lastDone.
- * - Named kinds use calendar periods in the evaluation time zone.
+ * - Named kinds use calendar periods in the item's time zone.
  * - `every_n_days` adds a fixed day count from lastDone's local date.
  */
 export type Cadence = NamedCadence | EveryNDaysCadence;
@@ -34,7 +34,7 @@ export type CatalogItemStatus = "active" | "paused";
 
 /**
  * A catalog (chore/routine) item.
- * `lastDone` is an Instant (UTC ms). Calendar math uses `zone` / eval options.
+ * `lastDone` is an Instant (UTC ms). Calendar math uses required `zone`.
  */
 export type CatalogItem = {
   readonly id: string;
@@ -44,9 +44,9 @@ export type CatalogItem = {
   readonly lastDone: Date | null;
   /**
    * IANA time zone for day-boundary math (e.g. "Europe/Berlin").
-   * If omitted, evaluate* uses options.timeZone, then "UTC".
+   * Required — evaluate* uses only `item.zone` (no options fallback, no UTC default).
    */
-  readonly zone?: string;
+  readonly zone: string;
   readonly status: CatalogItemStatus;
 };
 
@@ -79,14 +79,8 @@ export type Clock = {
 
 export type EvaluateOptions = {
   /**
-   * How many calendar days ahead (from "today" in the eval zone) to treat
-   * as "upcoming". Default: 7.
+   * How many calendar days ahead (from "today" in the item's zone) to treat
+   * as "upcoming". Required — UX/adapters supply this; engine has no default.
    */
-  readonly horizonDays?: number;
-  /**
-   * Default IANA zone when item.zone is unset.
-   * Dogfood default for Ariel: "Europe/Berlin". Engine itself defaults to "UTC"
-   * unless the caller passes this — document the choice at the adapter boundary.
-   */
-  readonly timeZone?: string;
+  readonly horizonDays: number;
 };
