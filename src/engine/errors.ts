@@ -1,10 +1,6 @@
 /**
  * Typed errors for the pure due-engine.
  * Never swallow these — callers should surface them for debuggability.
- *
- * Invalid Instant / zone strings: let Temporal construction throw
- * (TypeError / RangeError). Adapters own input validation; the engine does
- * not wrap those into a custom InvalidDateError.
  */
 
 export class NotImplementedError extends Error {

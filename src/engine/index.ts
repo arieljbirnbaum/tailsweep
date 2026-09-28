@@ -22,6 +22,6 @@ export type {
 
 export { NotImplementedError, InvalidCadenceError } from "./errors";
 
-export { systemClock, fixedClock } from "./clock";
+export { fixedClock } from "./clock";
 
 export { evaluateItem, evaluateCatalog } from "./evaluate";

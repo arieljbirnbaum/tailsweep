@@ -261,6 +261,6 @@ describe("stub status (handoff signal)", () => {
     const b = clock.now();
     expect(a.equals(instant)).toBe(true);
     expect(a.equals(b)).toBe(true);
-    expect(a).toBe(b); // same frozen Instant reference
+    expect(a).toBe(b);
   });
 });

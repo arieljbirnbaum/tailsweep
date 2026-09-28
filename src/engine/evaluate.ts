@@ -10,8 +10,7 @@ import type {
  * Evaluate a single catalog item against `now`.
  *
  * CONTRACT (Ariel implements until tests green) — summary:
- * 1. `now` / `lastDone` are Temporal.Instant (validation at adapters; Temporal
- *    construction throws on bad strings — no assertDate / InvalidDateError).
+ * 1. `now` / `lastDone` are Temporal.Instant.
  * 2. Paused → not_applicable, nextDue null.
  * 3. as_needed + lastDone set → not_applicable; as_needed + never done → due.
  * 4. Completion-anchored: next due local date = lastDone local date + cadence.
