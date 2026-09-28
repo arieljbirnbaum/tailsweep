@@ -1,12 +1,10 @@
 /**
  * Contract tests for the due-engine.
  *
- * These assert the BEHAVIOR Ariel must implement. evaluateItem currently
- * throws NotImplementedError — expect red until the engine is filled in.
+ * Assert state and nextDue against ARCHITECTURE.md. Prefer Instant.equals
+ * checks for nextDue — state-only rows will miss wall-clock vs start-of-day bugs.
  *
  * Run: pnpm test
- * Goal: make this file green without changing the assertions (unless the
- * product contract itself changes — then update ARCHITECTURE.md too).
  */
 
 import { describe, expect, it } from "vitest";
@@ -231,6 +229,57 @@ describe("evaluateCatalog contract", () => {
     expect(results.map((r) => r.itemId)).toEqual(["a", "b"]);
     expect(results[0]?.state).toBe("not_applicable");
     expect(results[1]?.state).toBe("due");
+  });
+});
+
+describe("evaluateItem nextDue contract", () => {
+  const todayStart = NOW.toZonedDateTimeISO(ZONE).startOfDay().toInstant();
+
+  it("scheduled never done → nextDue is start of today in zone (not wall-clock now)", () => {
+    const result = evaluateItem(
+      item({
+        id: "daily-new-nextdue",
+        cadence: { kind: "daily" },
+        lastDone: null,
+      }),
+      NOW,
+      { horizonDays: HORIZON },
+    );
+    expect(result.state).toBe("overdue");
+    expect(result.nextDue).not.toBeNull();
+    expect(result.nextDue!.equals(todayStart)).toBe(true);
+    // Wall-clock now is midday UTC; nextDue must be local midnight Instant, not `now`.
+    expect(result.nextDue!.equals(NOW)).toBe(false);
+  });
+
+  it("as_needed never done → nextDue is start of today in zone", () => {
+    const result = evaluateItem(
+      item({
+        id: "as-needed-new-nextdue",
+        cadence: { kind: "as_needed" },
+        lastDone: null,
+      }),
+      NOW,
+      { horizonDays: HORIZON },
+    );
+    expect(result.state).toBe("due");
+    expect(result.nextDue).not.toBeNull();
+    expect(result.nextDue!.equals(todayStart)).toBe(true);
+  });
+
+  it("daily lastDone yesterday → nextDue is start of today in zone", () => {
+    const result = evaluateItem(
+      item({
+        id: "daily-yday-nextdue",
+        cadence: { kind: "daily" },
+        lastDone: Temporal.Instant.from("2026-09-26T10:00:00.000Z"),
+      }),
+      NOW,
+      { horizonDays: HORIZON },
+    );
+    expect(result.state).toBe("due");
+    expect(result.nextDue).not.toBeNull();
+    expect(result.nextDue!.equals(todayStart)).toBe(true);
   });
 });
 
