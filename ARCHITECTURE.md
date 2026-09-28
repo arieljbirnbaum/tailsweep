@@ -22,7 +22,7 @@ Dependencies point **inward only**:
 - `src/db` may import `@/engine` types (for mappers) — **never** the other way
 - `src/engine` must **never** import Next, React, Drizzle, `fs`, `fetch`, Node I/O, or anything under `src/app` / `src/db`
 
-If you need “today” inside the engine, take a `Temporal.Instant` argument or an injectable `Clock`. Do not call `Temporal.Now` / system time for business “now” inside evaluate\*.
+If you need “today” inside the engine, take a `Temporal.Instant` argument or an injectable `Clock`. Do **not** call `Temporal.Now` anywhere under `src/engine` (ESLint error). Production clock lives at `src/time/system-clock.ts` (or inline `{ now: () => Temporal.Now.instant() }` at the adapter edge).
 
 ## Due-engine contract (`src/engine`)
 
@@ -34,7 +34,7 @@ If you need “today” inside the engine, take a `Temporal.Instant` argument or
 | `CatalogItem` | `id`, `name`, `cadence`, `lastDone: Temporal.Instant \| null`, required `zone` (IANA id), `status: active\|paused` |
 | `DueState` | `due` \| `overdue` \| `upcoming` \| `not_applicable` |
 | `EvaluateOptions` | required `horizonDays: number` (no engine default; no `timeZone`) |
-| `Clock` | `{ now(): Temporal.Instant }` — inject at edges; use `fixedClock` in tests |
+| `Clock` | `{ now(): Temporal.Instant }` — inject at edges; `fixedClock` in tests; production `systemClock` at `src/time/system-clock.ts` (outside engine) |
 
 ### Functions (Ariel implements)
 
@@ -45,7 +45,8 @@ Stubs throw `NotImplementedError`. Contract tests in `evaluate.test.ts` define e
 
 ### Time & time zones
 
-- Facts are **`Temporal.Instant`** (UTC) plus a required IANA **`item.zone`** string. No `Date` in the engine public API.
+- Facts are **`Temporal.Instant`** (UTC) plus a required IANA **`item.zone`** string. No `Date` anywhere in the project (ESLint `@typescript-eslint/no-restricted-types` + `no-restricted-syntax` — use Temporal).
+- **`Temporal.Now` is banned under `src/engine/**`** (ESLint). Inject `Clock` or pass `Temporal.Instant` from the edge (`src/time/system-clock.ts`).
 - **Calendar day boundaries** use **only** `item.zone`: Instant → `ZonedDateTimeISO(item.zone)` → `PlainDate` → add cadence → start-of-day Instant in that zone. No `options.timeZone`, no `"UTC"` default in evaluate\*.
 - **`nextDue`**: Instant at **start of the local due day** in `item.zone`. When converting a PlainDate (or local midnight) to Instant across DST gaps/folds, use Temporal’s **`disambiguation: "compatible"`** (Temporal’s common default — name it explicitly in implementer code). Do not invent silent half-hour offsets.
 - UX/adapters supply `zone` on each catalog item and `horizonDays` on every evaluate\* call. The engine requires both; it does not pick a dogfood default.
@@ -84,7 +85,7 @@ Cadence increments (from lastDone’s local date):
 
 ## Debuggability
 
-- **Injectable clock** — no hidden `Temporal.Now` / system time in evaluate\*.
+- **Injectable clock** — no `Temporal.Now` / system time in `src/engine` (lint-enforced); production clock at `src/time/system-clock.ts`.
 - **Typed errors** — `NotImplementedError`, `InvalidCadenceError` (codes on `.code`). Temporal construction errors surface as-is.
 - **Table-driven tests** — one row per behavior; failures name the case.
 - **No silent Instant coercion** — bad strings throw from Temporal; adapters validate at the edge.
@@ -108,5 +109,6 @@ Cadence increments (from lastDone’s local date):
 - [ ] New due behavior covered by a table row in `evaluate.test.ts`.
 - [ ] `pnpm typecheck` && `pnpm lint` && `pnpm test` (tests green once engine is implemented).
 - [ ] Times are `Temporal.Instant`; every `CatalogItem` has required `zone`; every evaluate\* call passes `horizonDays`.
+- [ ] Lint enforces **no `Date`** (repo-wide) and **no `Temporal.Now`** under `src/engine/**`; production clock stays outside the engine (`src/time/system-clock.ts`).
 - [ ] No due math added to `src/db`.
 - [ ] README / ARCHITECTURE updated if the contract changed.

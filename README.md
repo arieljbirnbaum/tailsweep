@@ -68,7 +68,8 @@ Stubs throw `NotImplementedError` so the harness is honest: red tests mean “no
 ## Key paths
 
 ```
-src/engine/     pure due-engine (types, clock, evaluate stubs, contract tests)
+src/engine/     pure due-engine (types, fixedClock, evaluate stubs, contract tests; no Temporal.Now)
+src/time/       edge clocks (systemClock) — inject into adapters/UI
 src/db/         Drizzle schema + libsql client (no due math)
 src/app/        Next.js UI shell
 ARCHITECTURE.md layering & contract

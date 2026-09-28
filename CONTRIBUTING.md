@@ -34,6 +34,8 @@ Requires **Node ≥ 20**. Temporal comes from `@js-temporal/polyfill` (native on
 
 Adapters/UI pass an IANA `zone` on every catalog item and `horizonDays` on every evaluate\* call. The engine has **no** default zone or horizon. Tests set `zone` explicitly on fixtures (e.g. `Europe/Berlin`). Fixtures use `Temporal.Instant.from('...')`, not `Date`.
 
+Production “now” is injected at the edge via `src/time/system-clock.ts` (or an inline `{ now: () => Temporal.Now.instant() }`). Do not call `Temporal.Now` inside `src/engine` — ESLint fails the build. Repo-wide ESLint also bans `Date`.
+
 ## Commits
 
 Clear, imperative subjects. Examples:

@@ -3,6 +3,9 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import prettier from "eslint-config-prettier";
 
+const dateBanMessage =
+  "Date is banned in Duekeep. Use Temporal.Instant / ZonedDateTime / PlainDate.";
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -22,6 +25,50 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-unused-vars": [
         "warn",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+      // Repo-wide Date-Verbot (prefer Temporal).
+      "@typescript-eslint/no-restricted-types": [
+        "error",
+        {
+          types: {
+            Date: {
+              message: dateBanMessage,
+            },
+          },
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "NewExpression[callee.name='Date']",
+          message: dateBanMessage,
+        },
+        {
+          selector: "CallExpression[callee.object.name='Date']",
+          message: dateBanMessage,
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/engine/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "NewExpression[callee.name='Date']",
+          message: dateBanMessage,
+        },
+        {
+          selector: "CallExpression[callee.object.name='Date']",
+          message: dateBanMessage,
+        },
+        {
+          selector:
+            "MemberExpression[object.name='Temporal'][property.name='Now']",
+          message:
+            "Temporal.Now is banned in src/engine. Inject Clock or pass Temporal.Instant from the edge.",
+        },
       ],
     },
   },
