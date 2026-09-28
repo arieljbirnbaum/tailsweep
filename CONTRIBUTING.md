@@ -4,8 +4,9 @@
 
 ```bash
 pnpm install
+pnpm db:migrate   # local SQLite schema (file:./duekeep.db or DATABASE_URL)
 pnpm dev          # Next.js
-pnpm test         # Vitest (engine contract — expect red until evaluate* is implemented)
+pnpm test         # Vitest
 pnpm typecheck
 pnpm lint
 ```
@@ -14,12 +15,12 @@ Requires **Node ≥ 20**. Temporal comes from `@js-temporal/polyfill` (native on
 
 ## Where to work
 
-| Area | Path | Owner (handoff) |
-|------|------|-----------------|
-| Due math | `src/engine/` | **Ariel** — implement until `pnpm test` is green |
-| Scaffold / harness | repo root, configs, tests defining contract | Mercer (this scaffold) |
-| UI | `src/app/` | later |
-| DB | `src/db/` | schema placeholder only for now |
+| Area               | Path                                        | Owner (handoff)                                  |
+| ------------------ | ------------------------------------------- | ------------------------------------------------ |
+| Due math           | `src/engine/`                               | **Ariel** — implement until `pnpm test` is green |
+| Scaffold / harness | repo root, configs, tests defining contract | Mercer (this scaffold)                           |
+| UI                 | `src/app/`                                  | later                                            |
+| DB                 | `src/db/`                                   | schema, mappers, migrations (no due math)        |
 
 ## Implementing the engine
 

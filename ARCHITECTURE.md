@@ -28,13 +28,13 @@ If you need “today” inside the engine, take a `Temporal.Instant` argument or
 
 ### Types
 
-| Concept | Notes |
-|--------|--------|
-| `Cadence` | `daily` / `weekly` / `monthly` / `quarterly` / `yearly` / `as_needed` / `{ kind: "every_n_days", days: N }` |
-| `CatalogItem` | `id`, `name`, `cadence`, `lastDone: Temporal.Instant \| null`, required `zone` (IANA id), `status: active\|paused` |
-| `DueState` | `due` \| `overdue` \| `upcoming` \| `not_applicable` |
-| `EvaluateOptions` | required `horizonDays: number` (no engine default; no `timeZone`) |
-| `Clock` | `{ now(): Temporal.Instant }` — inject at edges; `fixedClock` in tests; production `systemClock` at `src/time/system-clock.ts` (outside engine) |
+| Concept           | Notes                                                                                                                                           |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Cadence`         | `daily` / `weekly` / `monthly` / `quarterly` / `yearly` / `as_needed` / `{ kind: "every_n_days", days: N }`                                     |
+| `CatalogItem`     | `id`, `name`, `cadence`, `lastDone: Temporal.Instant \| null`, required `zone` (IANA id), `status: active\|paused`                              |
+| `DueState`        | `due` \| `overdue` \| `upcoming` \| `not_applicable`                                                                                            |
+| `EvaluateOptions` | required `horizonDays: number` (no engine default; no `timeZone`)                                                                               |
+| `Clock`           | `{ now(): Temporal.Instant }` — inject at edges; `fixedClock` in tests; production `systemClock` at `src/time/system-clock.ts` (outside engine) |
 
 ### Functions
 
@@ -92,9 +92,48 @@ Cadence increments (from lastDone’s local date):
 
 ## DB layer (`src/db`)
 
-- Stores **facts**: catalog rows + append-only `completions`.
-- `cadence_json` / `last_done_at` are persistence shapes; map to/from engine types in adapters (`last_done_at` ISO Instant string ↔ `Temporal.Instant`).
-- **Never** compute `DueState` in SQL or Drizzle queries.
+Persistence lives **outside** `src/engine`. The engine stays pure (no Drizzle / libsql / `src/db` imports). The DB layer stores **facts** and maps rows ↔ domain types; adapters/UI call evaluate\* with those mapped `CatalogItem`s.
+
+### What is stored
+
+| Table           | Purpose                                                                                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `catalog_items` | Catalog chores/routines: `id`, `name`, `cadence_json`, `last_done_at`, **required** `zone` (IANA), `status` (`active`\|`paused`), `created_at`, `updated_at` |
+| `completions`   | Append-only completion log: `id`, `item_id` → catalog, `completed_at`, optional `note`                                                                       |
+
+**Never** store `DueState` (or `nextDue`) in SQL — those are derived at evaluate time.
+
+### Instant / ISO policy (no `Date`)
+
+- Timestamp columns (`last_done_at`, `completed_at`, `created_at`, `updated_at`) are **ISO-8601 Instant text** (UTC), e.g. `2026-09-28T20:00:00.000Z`.
+- Mappers use `Temporal.Instant.from(iso)` / `instant.toString()`. No `Date` at the schema or mapper layer (repo-wide ESLint ban).
+- Bad Instant strings throw from Temporal — no silent coercion.
+
+### Zone
+
+- `catalog_items.zone` is **NOT NULL**, matching required `CatalogItem.zone`.
+- Mappers reject empty/missing zone. **No UTC fallback** in SQL defaults or mapper code.
+
+### Mappers (`src/db/mappers.ts`)
+
+- `rowToCatalogItem` / `catalogItemToRow` — `CatalogItemRow` ↔ `CatalogItem`
+- `rowToCompletion` / `completionToRow` — completion facts ↔ domain
+- `parseCadenceJson` — strict Cadence JSON (throws `InvalidCadenceError` on bad shape)
+- Convenience defaults (e.g. dogfood zone, horizon) belong in UX/adapters, **not** here or in the engine.
+
+### Migrations
+
+- SQL migrations in `./drizzle` (committed). Generate with `pnpm db:generate` (`drizzle-kit generate`).
+- Apply with `pnpm db:migrate` (`drizzle-kit migrate`, reads `drizzle.config.ts`).
+- Programmatic apply (tests): `applyMigrations(db)` from `src/db/migrate.ts` via `drizzle-orm/libsql/migrator`.
+- Default DB URL: `DATABASE_URL` or `file:./duekeep.db` (see `drizzle.config.ts` / `createDb`).
+- From a clean clone: `pnpm install` → `pnpm db:migrate`.
+
+### What stays out of the DB layer
+
+- Due math / `evaluateItem` / `DueState`
+- Mark-done API / UI (later tickets)
+- Seed data beyond what tests need
 
 ## Naming conventions
 
