@@ -17,7 +17,7 @@ Last done + cadence → what’s due (optional calendar holds). Not a habit RPG.
 
 ## Status
 
-Pre-v1. Domain schemas (`src/domain`), pure due-engine (`src/engine`), and local SQLite persistence scaffold (`src/db`: schema, mappers, migrations) are in place. Mark-done UI / evaluate adapters come later.
+Pre-v1. Domain schemas (`src/domain`), pure due-engine (`src/engine`), local SQLite persistence (`src/db`), and app adapters (`src/adapters`: load catalog → evaluate → due-list view models) are in place. Mark-done UI comes later.
 
 Product brief lives in Notion. Engine before chrome; dogfood on real chores before any storefront.
 
@@ -51,7 +51,7 @@ Short contributor notes: **[CONTRIBUTING.md](./CONTRIBUTING.md)**.
 | `pnpm build`       | Production build                         |
 | `pnpm lint`        | ESLint                                   |
 | `pnpm typecheck`   | `tsc --noEmit` (strict)                  |
-| `pnpm test`        | Vitest — engine contract tests           |
+| `pnpm test`        | Vitest — engine + db + adapter tests     |
 | `pnpm test:watch`  | Vitest watch mode                        |
 | `pnpm format`      | Prettier write                           |
 | `pnpm db:generate` | Drizzle kit generate → `./drizzle`       |
@@ -74,6 +74,7 @@ Mappers live in `src/db/mappers.ts` (not in the engine). Never store `DueState` 
 ```
 src/domain/     Zod schemas + constrained types + fail-loud parsers
 src/engine/     pure due-engine (evaluate; typedefs from domain; no Temporal.Now / Drizzle / Zod parse)
+src/adapters/   load catalog → evaluate → due-list VMs; UX defaults (horizon, zone)
 src/time/       edge clocks (systemClock) — inject into adapters/UI
 src/db/         Drizzle schema, mappers (domain parsers), migrate helper (no due math)
 drizzle/        committed SQL migrations

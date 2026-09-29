@@ -19,6 +19,7 @@ Requires **Node ≥ 20**. Temporal comes from `@js-temporal/polyfill` (native on
 | ------------------ | ------------------------------------------- | -------------------------------------------- |
 | Domain schemas     | `src/domain/`                               | Zod + constraints; parse at boundaries       |
 | Due math           | `src/engine/`                               | **Ariel** — evaluate*; typedefs from domain  |
+| App adapters       | `src/adapters/`                             | load → evaluate → VMs; UX defaults only here |
 | Scaffold / harness | repo root, configs, tests defining contract | Mercer (this scaffold)                       |
 | UI                 | `src/app/`                                  | later                                        |
 | DB                 | `src/db/`                                   | schema, mappers (domain parsers), migrations |
@@ -34,7 +35,7 @@ Requires **Node ≥ 20**. Temporal comes from `@js-temporal/polyfill` (native on
 
 ## Time zone note
 
-Adapters/UI pass an IANA `zone` on every catalog item and `horizonDays` on every evaluate\* call. The engine has **no** default zone or horizon. Tests set `zone` explicitly on fixtures (e.g. `Europe/Berlin`). Fixtures use `Temporal.Instant.from('...')`, not `Date`.
+Adapters/UI pass an IANA `zone` on every catalog item and `horizonDays` on every evaluate* call. The engine has **no** default zone or horizon. Dogfood defaults (`DEFAULT_HORIZON_DAYS`, `DEFAULT_ZONE`) live in `src/adapters` only. Tests set `zone` explicitly on fixtures (e.g. `Europe/Berlin`). Fixtures use `Temporal.Instant.from('...')`, not `Date`.
 
 Production “now” is injected at the edge via `src/time/system-clock.ts` (or an inline `{ now: () => Temporal.Now.instant() }`). Do not call `Temporal.Now` inside `src/engine` — ESLint fails the build. Repo-wide ESLint also bans `Date`.
 
