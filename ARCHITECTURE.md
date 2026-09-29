@@ -10,17 +10,22 @@ Engine before chrome. Debuggability first.
 ┌─────────────────────────────────────────┐
 │  UI  (src/app)  Next.js App Router      │  presentation only
 ├─────────────────────────────────────────┤
-│  Adapters / DB  (src/db)  Drizzle+SQLite│  persist facts, map rows ↔ domain
+│  Adapters / DB  (src/db)  Drizzle+SQLite│  persist facts; parse at boundary
 ├─────────────────────────────────────────┤
-│  Engine  (src/engine)  PURE TypeScript  │  due math, types, clock, errors
+│  Engine  (src/engine)  PURE TypeScript  │  due math; imports domain typedefs
+├─────────────────────────────────────────┤
+│  Domain  (src/domain)  Zod + types      │  schemas, constraints, fail-loud parse
 └─────────────────────────────────────────┘
 ```
 
 Dependencies point **inward only**:
 
-- `src/app` may import `@/engine` and `@/db`
-- `src/db` may import `@/engine` types (for mappers) — **never** the other way
-- `src/engine` must **never** import Next, React, Drizzle, `fs`, `fetch`, Node I/O, or anything under `src/app` / `src/db`
+- `src/app` may import `@/engine`, `@/db`, and `@/domain`
+- `src/db` may import `@/domain` (parsers) and `@/engine` (evaluate at edges) — **never** the other way from engine/domain into db
+- `src/engine` may import **types** from `@/domain` (type-only) and shared errors from `@/domain/errors` (thin, no Zod) — must **never** value-import the fat `@/domain` barrel, nor import Next, React, Drizzle, Zod for runtime parse on evaluate*, `fs`, `fetch`, Node I/O, or anything under `src/app` / `src/db`
+- `src/domain` must **never** import engine evaluate logic, Drizzle, Next, or React
+
+**Domain owns** Zod schemas + constrained types (`Cadence`, `CatalogItem`, Instant ISO helpers, zone/status). **Engine** stays pure functional due math and may depend on domain for typedefs only — do **not** run Zod on every `evaluate*` call. **Adapters/persistence** call domain `parse*` helpers at the boundary (fail-loud; no permissive coercions).
 
 If you need “today” inside the engine, take a `Temporal.Instant` argument or an injectable `Clock`. Do **not** call `Temporal.Now` anywhere under `src/engine` (ESLint error). Production clock lives at `src/time/system-clock.ts` (or inline `{ now: () => Temporal.Now.instant() }` at the adapter edge).
 
@@ -28,13 +33,13 @@ If you need “today” inside the engine, take a `Temporal.Instant` argument or
 
 ### Types
 
-| Concept | Notes |
-|--------|--------|
-| `Cadence` | `daily` / `weekly` / `monthly` / `quarterly` / `yearly` / `as_needed` / `{ kind: "every_n_days", days: N }` |
-| `CatalogItem` | `id`, `name`, `cadence`, `lastDone: Temporal.Instant \| null`, required `zone` (IANA id), `status: active\|paused` |
-| `DueState` | `due` \| `overdue` \| `upcoming` \| `not_applicable` |
-| `EvaluateOptions` | required `horizonDays: number` (no engine default; no `timeZone`) |
-| `Clock` | `{ now(): Temporal.Instant }` — inject at edges; `fixedClock` in tests; production `systemClock` at `src/time/system-clock.ts` (outside engine) |
+| Concept           | Notes                                                                                                                                           |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Cadence`         | `daily` / `weekly` / `monthly` / `quarterly` / `yearly` / `as_needed` / `{ kind: "every_n_days", days: N }`                                     |
+| `CatalogItem`     | `id`, `name`, `cadence`, `lastDone: Temporal.Instant \| null`, required `zone` (IANA id), `status: active\|paused`                              |
+| `DueState`        | `due` \| `overdue` \| `upcoming` \| `not_applicable`                                                                                            |
+| `EvaluateOptions` | required `horizonDays: number` (no engine default; no `timeZone`)                                                                               |
+| `Clock`           | `{ now(): Temporal.Instant }` — inject at edges; `fixedClock` in tests; production `systemClock` at `src/time/system-clock.ts` (outside engine) |
 
 ### Functions
 
@@ -51,7 +56,7 @@ Behavioral contract is this doc plus the table-driven cases in `evaluate.test.ts
 - **Midnight / DST**: when a local midnight is ambiguous or skipped, use Temporal’s default disambiguation **`compatible`**. Lock spring/fall SOD Instants in `evaluate.test.ts`; do not invent silent half-hour offsets. No `options.timeZone`, no `"UTC"` default in evaluate\*.
 - UX/adapters supply `zone` on each catalog item and `horizonDays` on every evaluate\* call. The engine requires both; it does not pick a dogfood default.
 - `horizonDays` (required): how far ahead “upcoming” extends; beyond horizon → `not_applicable`.
-- Invalid Instant / zone strings: let Temporal construction throw (`TypeError` / `RangeError`). Adapters own validation — the engine does **not** expose `assertDate` / `InvalidDateError`.
+- Invalid Instant strings: let Temporal construction throw (`TypeError` / `RangeError`). **Zone** is validated at the domain boundary (`zoneSchema` / `parseZone`) against runtime tzdata via `Intl.supportedValuesOf("timeZone")` (Temporal fallback for ids Intl omits, e.g. `UTC`); unknown / padded zones fail loud at parse — not deferred to evaluate. Adapters own validation — the engine does **not** expose `assertDate` / `InvalidDateError`.
 
 ### Temporal polyfill & runtime
 
@@ -92,9 +97,54 @@ Cadence increments (from lastDone’s local date):
 
 ## DB layer (`src/db`)
 
-- Stores **facts**: catalog rows + append-only `completions`.
-- `cadence_json` / `last_done_at` are persistence shapes; map to/from engine types in adapters (`last_done_at` ISO Instant string ↔ `Temporal.Instant`).
-- **Never** compute `DueState` in SQL or Drizzle queries.
+Persistence lives **outside** `src/engine`. The engine stays pure (no Drizzle / libsql / `src/db` imports). The DB layer stores **facts** and maps rows ↔ domain types; adapters/UI call evaluate\* with those mapped `CatalogItem`s.
+
+### What is stored
+
+| Table           | Purpose                                                                                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `catalog_items` | Catalog chores/routines: `id`, `name`, `cadence_json`, `last_done_at`, **required** `zone` (IANA), `status` (`active`\|`paused`), `created_at`, `updated_at` |
+| `completions`   | Append-only completion log: `id`, `item_id` → catalog, `completed_at`, optional `note`                                                                       |
+
+**Never** store `DueState` (or `nextDue`) in SQL — those are derived at evaluate time.
+
+### Instant / ISO policy (no `Date`)
+
+- Timestamp columns (`last_done_at`, `completed_at`, `created_at`, `updated_at`) are **ISO-8601 Instant text** (UTC), e.g. `2026-09-28T20:00:00.000Z`.
+- Mappers use `Temporal.Instant.from(iso)` / `instant.toString()`. No `Date` at the schema or mapper layer (repo-wide ESLint ban).
+- Bad Instant strings throw from Temporal — no silent coercion.
+
+### Zone
+
+- `catalog_items.zone` is **NOT NULL**, matching required `CatalogItem.zone`.
+- Mappers reject empty/missing zone. **No UTC fallback** in SQL defaults or mapper code.
+
+### Domain (`src/domain`)
+
+- Zod schemas are the source of truth for constrained types (`Cadence`, zone, status, Instant ISO).
+- `parseCadence` / `parseCadenceJson`, `parseZone`, `parseInstantIso`, `parseCatalogItemFromRow`, etc. — fail-loud at boundaries.
+- Engine re-exports domain typedefs; evaluate* does not Zod-parse on the happy path.
+
+### Mappers (`src/db/mappers.ts`)
+
+- `rowToCatalogItem` / `catalogItemToRow` — `CatalogItemRow` ↔ `CatalogItem` via domain parsers
+- `rowToCompletion` / `completionToRow` — completion facts ↔ domain
+- Cadence JSON / Instant ISO / zone checks live in `@/domain` (mappers delegate)
+- Convenience defaults (e.g. dogfood zone, horizon) belong in UX/adapters, **not** here or in the engine.
+
+### Migrations
+
+- SQL migrations in `./drizzle` (committed). Generate with `pnpm db:generate` (`drizzle-kit generate`).
+- Apply with `pnpm db:migrate` (`drizzle-kit migrate`, reads `drizzle.config.ts`).
+- Programmatic apply (tests): `applyMigrations(db)` from `src/db/migrate.ts` via `drizzle-orm/libsql/migrator`.
+- Default DB URL: `DATABASE_URL` or `file:./duekeep.db` (see `drizzle.config.ts` / `createDb`).
+- From a clean clone: `pnpm install` → `pnpm db:migrate`.
+
+### What stays out of the DB layer
+
+- Due math / `evaluateItem` / `DueState`
+- Mark-done API / UI (later tickets)
+- Seed data beyond what tests need
 
 ## Naming conventions
 
@@ -105,10 +155,11 @@ Cadence increments (from lastDone’s local date):
 
 ## PR checklist
 
-- [ ] Engine still has **zero** Next/React/Drizzle/fs/fetch imports (`rg` the folder).
+- [ ] Engine still has **zero** Next/React/Drizzle/fs/fetch imports (`rg` the folder); no `zod` or fat `@/domain` value import under `src/engine` (domain owns runtime parse; errors via `@/domain/errors`).
+- [ ] Domain schemas remain the source of truth for Cadence / CatalogItem constraints; persistence uses domain parsers.
 - [ ] New due behavior: update ARCHITECTURE state/cadence rules and add/adjust a table row in `evaluate.test.ts`.
 - [ ] `pnpm typecheck` && `pnpm lint` && `pnpm test` (tests green once engine is implemented).
 - [ ] Times are `Temporal.Instant`; every `CatalogItem` has required `zone`; every evaluate\* call passes `horizonDays`.
-- [ ] Lint enforces **no `Date`** (repo-wide) and **no `Temporal.Now`** under `src/engine/**`; production clock stays outside the engine (`src/time/system-clock.ts`).
+- [ ] Lint enforces **no `Date`** (repo-wide), **no `Temporal.Now`**, **no `zod`**, and **no value `@/domain` barrel** under `src/engine/**` (`@/domain/errors` + type-only `@/domain` allowed); production clock stays outside the engine (`src/time/system-clock.ts`).
 - [ ] No due math added to `src/db`.
 - [ ] README / ARCHITECTURE updated if the contract changed.

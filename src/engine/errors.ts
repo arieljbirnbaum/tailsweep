@@ -1,7 +1,12 @@
 /**
  * Typed errors for the pure due-engine.
  * Never swallow these — callers should surface them for debuggability.
+ *
+ * InvalidCadenceError lives in `@/domain/errors` (thin, no Zod); re-exported
+ * here for stable `@/engine` consumers. Do not value-import the fat `@/domain` barrel.
  */
+
+export { InvalidCadenceError } from "@/domain/errors";
 
 export class NotImplementedError extends Error {
   readonly code = "NOT_IMPLEMENTED" as const;
@@ -11,14 +16,5 @@ export class NotImplementedError extends Error {
       `NotImplementedError: ${feature} — Ariel: implement this in the due-engine until tests are green.`,
     );
     this.name = "NotImplementedError";
-  }
-}
-
-export class InvalidCadenceError extends Error {
-  readonly code = "INVALID_CADENCE" as const;
-
-  constructor(message: string) {
-    super(`InvalidCadenceError: ${message}`);
-    this.name = "InvalidCadenceError";
   }
 }

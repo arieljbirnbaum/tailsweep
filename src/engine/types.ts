@@ -1,54 +1,21 @@
 /**
- * Pure domain types for Duekeep's completion-anchored due engine.
- * No UI / DB / IO / fetch / fs imports allowed in this module tree.
+ * Engine types — domain typedefs re-exported as the single source of truth,
+ * plus evaluate-only types (DueState, Clock, options).
+ *
+ * Domain owns Cadence / CatalogItem constraints (Zod). Engine logic stays pure
+ * and type-only-imports from domain — no Zod runtime parse on evaluate*.
  */
 
 import type { Temporal } from "./temporal";
 
-/** Named cadence kinds (calendar-aligned). */
-export type NamedCadenceKind =
-  "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | "as_needed";
-
-/** Fixed interval of N calendar days (completion-anchored). */
-export type EveryNDaysCadence = {
-  readonly kind: "every_n_days";
-  /** Positive integer; 1 ≈ daily but not calendar-day-aligned the same way. */
-  readonly days: number;
-};
-
-export type NamedCadence = {
-  readonly kind: NamedCadenceKind;
-};
-
-/**
- * How often an item should be completed again after lastDone.
- * - Named kinds use calendar periods in the item's time zone.
- * - `every_n_days` adds a fixed day count from lastDone's local date.
- */
-export type Cadence = NamedCadence | EveryNDaysCadence;
-
-export type CatalogItemStatus = "active" | "paused";
-
-/**
- * A catalog (chore/routine) item.
- * `lastDone` is a Temporal.Instant (UTC). Cadence advances on the item’s local
- * civil calendar in required `zone`; `nextDue` is the Instant at start of that
- * due local day in `zone`. Contract check: Instant.equals on SOD Instants.
- * (Intent, not a prescribed Instant→ZDT→add→startOfDay / PlainDate pipeline.)
- */
-export type CatalogItem = {
-  readonly id: string;
-  readonly name: string;
-  readonly cadence: Cadence;
-  /** Instant of last completion, or null if never done. */
-  readonly lastDone: Temporal.Instant | null;
-  /**
-   * IANA time zone for day-boundary math (e.g. "Europe/Berlin").
-   * Required — evaluate* uses only `item.zone` (no options fallback, no UTC default).
-   */
-  readonly zone: string;
-  readonly status: CatalogItemStatus;
-};
+export type {
+  Cadence,
+  NamedCadence,
+  NamedCadenceKind,
+  EveryNDaysCadence,
+  CatalogItem,
+  CatalogItemStatus,
+} from "@/domain";
 
 /**
  * Due triage state for one item at a point in time.

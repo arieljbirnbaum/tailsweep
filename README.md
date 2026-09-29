@@ -12,12 +12,12 @@ Last done + cadence → what’s due (optional calendar holds). Not a habit RPG.
 - React
 - Tailwind CSS
 - Vitest / ESLint / Prettier
-- Drizzle + SQLite (libsql) — schema placeholders only
+- Drizzle + SQLite (libsql) — catalog + completions schema, migrations, mappers
 - Deploy target: Vercel
 
 ## Status
 
-Pre-v1. Scaffold + **pure due-engine contract** are in place. Domain logic in `src/engine` is intentionally **not** implemented yet — see handoff below.
+Pre-v1. Domain schemas (`src/domain`), pure due-engine (`src/engine`), and local SQLite persistence scaffold (`src/db`: schema, mappers, migrations) are in place. Mark-done UI / evaluate adapters come later.
 
 Product brief lives in Notion. Engine before chrome; dogfood on real chores before any storefront.
 
@@ -30,11 +30,12 @@ Gamification, social, full GTD, AI coaching chat, accounts-heavy SaaS.
 ```bash
 git clone git@github.com:arieljbirnbaum/duekeep.git
 cd duekeep
-pnpm install   # creates pnpm-lock.yaml if missing; packageManager is pnpm@12.6.0
+pnpm install   # packageManager is pnpm@12.6.0
+pnpm db:migrate   # apply drizzle/ SQL to local SQLite (file:./duekeep.db or DATABASE_URL)
 pnpm typecheck && pnpm lint && pnpm test
 ```
 
-`pnpm test` is **expected red** until Ariel implements `evaluateItem`.
+`DATABASE_URL` defaults to `file:./duekeep.db` when unset (see `drizzle.config.ts`).
 
 ## Architecture
 
@@ -44,33 +45,38 @@ Short contributor notes: **[CONTRIBUTING.md](./CONTRIBUTING.md)**.
 
 ## Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `pnpm dev` | Next.js dev server |
-| `pnpm build` | Production build |
-| `pnpm lint` | ESLint |
-| `pnpm typecheck` | `tsc --noEmit` (strict) |
-| `pnpm test` | Vitest — engine contract tests |
-| `pnpm test:watch` | Vitest watch mode |
-| `pnpm format` | Prettier write |
-| `pnpm db:generate` | Drizzle kit generate |
-| `pnpm db:studio` | Drizzle Studio |
+| Script             | Purpose                                  |
+| ------------------ | ---------------------------------------- |
+| `pnpm dev`         | Next.js dev server                       |
+| `pnpm build`       | Production build                         |
+| `pnpm lint`        | ESLint                                   |
+| `pnpm typecheck`   | `tsc --noEmit` (strict)                  |
+| `pnpm test`        | Vitest — engine contract tests           |
+| `pnpm test:watch`  | Vitest watch mode                        |
+| `pnpm format`      | Prettier write                           |
+| `pnpm db:generate` | Drizzle kit generate → `./drizzle`       |
+| `pnpm db:migrate`  | Apply migrations (`drizzle-kit migrate`) |
+| `pnpm db:studio`   | Drizzle Studio                           |
 
-## Handoff — Ariel
+## Database
 
-1. Implement `evaluateItem` / helpers in `src/engine` until **`pnpm test` is green**.
-2. Do not put due math in `src/db` or the UI.
-3. Keep the engine free of Next / React / Drizzle / `fs` / `fetch`.
-4. Contract lives in `src/engine/evaluate.test.ts` + `ARCHITECTURE.md`.
+Local SQLite via libsql + Drizzle. Schema and Instant/ISO + required-zone policy: **[ARCHITECTURE.md](./ARCHITECTURE.md)** (DB layer).
 
-Stubs throw `NotImplementedError` so the harness is honest: red tests mean “not done yet,” not “silent wrong answers.”
+```bash
+pnpm db:generate   # after schema changes
+pnpm db:migrate    # from a clean clone / after pulling new migrations
+```
+
+Mappers live in `src/db/mappers.ts` (not in the engine). Never store `DueState` in SQL.
 
 ## Key paths
 
 ```
-src/engine/     pure due-engine (types, fixedClock, evaluate stubs, contract tests; no Temporal.Now)
+src/domain/     Zod schemas + constrained types + fail-loud parsers
+src/engine/     pure due-engine (evaluate; typedefs from domain; no Temporal.Now / Drizzle / Zod parse)
 src/time/       edge clocks (systemClock) — inject into adapters/UI
-src/db/         Drizzle schema + libsql client (no due math)
+src/db/         Drizzle schema, mappers (domain parsers), migrate helper (no due math)
+drizzle/        committed SQL migrations
 src/app/        Next.js UI shell
 ARCHITECTURE.md layering & contract
 CONTRIBUTING.md setup & PR expectations
