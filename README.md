@@ -17,7 +17,7 @@ Last done + cadence → what’s due (optional calendar holds). Not a habit RPG.
 
 ## Status
 
-Pre-v1. Pure due-engine (`src/engine`) + local SQLite persistence scaffold (`src/db`: schema, mappers, migrations) are in place. Mark-done UI / evaluate adapters come later.
+Pre-v1. Domain schemas (`src/domain`), pure due-engine (`src/engine`), and local SQLite persistence scaffold (`src/db`: schema, mappers, migrations) are in place. Mark-done UI / evaluate adapters come later.
 
 Product brief lives in Notion. Engine before chrome; dogfood on real chores before any storefront.
 
@@ -72,9 +72,10 @@ Mappers live in `src/db/mappers.ts` (not in the engine). Never store `DueState` 
 ## Key paths
 
 ```
-src/engine/     pure due-engine (types, evaluate, contract tests; no Temporal.Now / Drizzle)
+src/domain/     Zod schemas + constrained types + fail-loud parsers
+src/engine/     pure due-engine (evaluate; typedefs from domain; no Temporal.Now / Drizzle / Zod parse)
 src/time/       edge clocks (systemClock) — inject into adapters/UI
-src/db/         Drizzle schema, mappers, migrate helper (no due math)
+src/db/         Drizzle schema, mappers (domain parsers), migrate helper (no due math)
 drizzle/        committed SQL migrations
 src/app/        Next.js UI shell
 ARCHITECTURE.md layering & contract

@@ -10,17 +10,22 @@ Engine before chrome. Debuggability first.
 ┌─────────────────────────────────────────┐
 │  UI  (src/app)  Next.js App Router      │  presentation only
 ├─────────────────────────────────────────┤
-│  Adapters / DB  (src/db)  Drizzle+SQLite│  persist facts, map rows ↔ domain
+│  Adapters / DB  (src/db)  Drizzle+SQLite│  persist facts; parse at boundary
 ├─────────────────────────────────────────┤
-│  Engine  (src/engine)  PURE TypeScript  │  due math, types, clock, errors
+│  Engine  (src/engine)  PURE TypeScript  │  due math; imports domain typedefs
+├─────────────────────────────────────────┤
+│  Domain  (src/domain)  Zod + types      │  schemas, constraints, fail-loud parse
 └─────────────────────────────────────────┘
 ```
 
 Dependencies point **inward only**:
 
-- `src/app` may import `@/engine` and `@/db`
-- `src/db` may import `@/engine` types (for mappers) — **never** the other way
-- `src/engine` must **never** import Next, React, Drizzle, `fs`, `fetch`, Node I/O, or anything under `src/app` / `src/db`
+- `src/app` may import `@/engine`, `@/db`, and `@/domain`
+- `src/db` may import `@/domain` (parsers) and `@/engine` (evaluate at edges) — **never** the other way from engine/domain into db
+- `src/engine` may import **types** (and shared errors) from `@/domain` — must **never** import Next, React, Drizzle, Zod for runtime parse on evaluate*, `fs`, `fetch`, Node I/O, or anything under `src/app` / `src/db`
+- `src/domain` must **never** import engine evaluate logic, Drizzle, Next, or React
+
+**Domain owns** Zod schemas + constrained types (`Cadence`, `CatalogItem`, Instant ISO helpers, zone/status). **Engine** stays pure functional due math and may depend on domain for typedefs only — do **not** run Zod on every `evaluate*` call. **Adapters/persistence** call domain `parse*` helpers at the boundary (fail-loud; no permissive coercions).
 
 If you need “today” inside the engine, take a `Temporal.Instant` argument or an injectable `Clock`. Do **not** call `Temporal.Now` anywhere under `src/engine` (ESLint error). Production clock lives at `src/time/system-clock.ts` (or inline `{ now: () => Temporal.Now.instant() }` at the adapter edge).
 
@@ -114,11 +119,17 @@ Persistence lives **outside** `src/engine`. The engine stays pure (no Drizzle / 
 - `catalog_items.zone` is **NOT NULL**, matching required `CatalogItem.zone`.
 - Mappers reject empty/missing zone. **No UTC fallback** in SQL defaults or mapper code.
 
+### Domain (`src/domain`)
+
+- Zod schemas are the source of truth for constrained types (`Cadence`, zone, status, Instant ISO).
+- `parseCadence` / `parseCadenceJson`, `parseZone`, `parseInstantIso`, `parseCatalogItemFromRow`, etc. — fail-loud at boundaries.
+- Engine re-exports domain typedefs; evaluate* does not Zod-parse on the happy path.
+
 ### Mappers (`src/db/mappers.ts`)
 
-- `rowToCatalogItem` / `catalogItemToRow` — `CatalogItemRow` ↔ `CatalogItem`
+- `rowToCatalogItem` / `catalogItemToRow` — `CatalogItemRow` ↔ `CatalogItem` via domain parsers
 - `rowToCompletion` / `completionToRow` — completion facts ↔ domain
-- `parseCadenceJson` — strict Cadence JSON (throws `InvalidCadenceError` on bad shape)
+- Cadence JSON / Instant ISO / zone checks live in `@/domain` (mappers delegate)
 - Convenience defaults (e.g. dogfood zone, horizon) belong in UX/adapters, **not** here or in the engine.
 
 ### Migrations
@@ -144,7 +155,8 @@ Persistence lives **outside** `src/engine`. The engine stays pure (no Drizzle / 
 
 ## PR checklist
 
-- [ ] Engine still has **zero** Next/React/Drizzle/fs/fetch imports (`rg` the folder).
+- [ ] Engine still has **zero** Next/React/Drizzle/fs/fetch imports (`rg` the folder); no `zod` import under `src/engine` (domain owns runtime parse).
+- [ ] Domain schemas remain the source of truth for Cadence / CatalogItem constraints; persistence uses domain parsers.
 - [ ] New due behavior: update ARCHITECTURE state/cadence rules and add/adjust a table row in `evaluate.test.ts`.
 - [ ] `pnpm typecheck` && `pnpm lint` && `pnpm test` (tests green once engine is implemented).
 - [ ] Times are `Temporal.Instant`; every `CatalogItem` has required `zone`; every evaluate\* call passes `horizonDays`.

@@ -20,11 +20,11 @@
 
 import { sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-/** Catalog chores/routines. Cadence stored as JSON text matching engine Cadence. */
+/** Catalog chores/routines. Cadence stored as JSON text matching domain Cadence. */
 export const catalogItems = sqliteTable("catalog_items", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  /** JSON-serialized Cadence from src/engine (strict-parsed in mappers). */
+  /** JSON-serialized Cadence (strict-parsed via @/domain in mappers). */
   cadenceJson: text("cadence_json").notNull(),
   /**
    * Last completion as ISO-8601 Instant text, or null if never done.

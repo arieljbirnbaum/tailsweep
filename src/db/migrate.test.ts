@@ -97,13 +97,13 @@ describe("db migrate + insert/select", () => {
 });
 
 describe("engine purity (light)", () => {
-  it("src/engine has no drizzle / libsql / src/db imports", () => {
+  it("src/engine has no drizzle / libsql / src/db / zod imports", () => {
     const engineDir = path.join(process.cwd(), "src/engine");
     const files = readdirSync(engineDir).filter((f) => f.endsWith(".ts"));
     for (const file of files) {
       const text = readFileSync(path.join(engineDir, file), "utf8");
       expect(text, file).not.toMatch(
-        /drizzle-orm|@libsql|from ["']@\/db|from ["']\.\.\/db/,
+        /drizzle-orm|@libsql|from ["']@\/db|from ["']\.\.\/db|from ["']zod["']/,
       );
     }
   });
