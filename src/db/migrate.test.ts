@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { Temporal } from "@/engine/temporal";
 
-import { createDb } from "./client";
+import { createDb, type Db } from "./client";
 import { catalogItems, completions } from "./schema";
 import {
   catalogItemToRow,
@@ -29,13 +29,48 @@ const UPDATED = Temporal.Instant.from("2026-09-15T12:00:00.000Z");
 const LAST_DONE = Temporal.Instant.from("2026-09-20T10:00:00.000Z");
 const COMPLETED_AT = Temporal.Instant.from("2026-09-20T10:05:00.000Z");
 
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Close libsql clients first so Windows can delete the locked DB files. */
+function closeClients(clients: Db[]): void {
+  for (const db of clients.splice(0)) {
+    try {
+      db.$client.close();
+    } catch {
+      // already closed / disposed
+    }
+  }
+}
+
+async function removeTempDirs(dirs: string[]): Promise<void> {
+  for (const dir of dirs.splice(0)) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch (err) {
+      // Windows: handle may linger briefly after close; one short retry.
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code: unknown }).code)
+          : "";
+      if (code === "EPERM" || code === "EBUSY") {
+        await sleepMs(50);
+        rmSync(dir, { recursive: true, force: true });
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
 describe("db migrate + insert/select", () => {
   const tempDirs: string[] = [];
+  const openDbs: Db[] = [];
 
-  afterEach(() => {
-    for (const dir of tempDirs.splice(0)) {
-      rmSync(dir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    closeClients(openDbs);
+    await removeTempDirs(tempDirs);
   });
 
   it("applies migrations on a clean temp db and round-trips rows", async () => {
@@ -43,6 +78,7 @@ describe("db migrate + insert/select", () => {
     tempDirs.push(dir);
     const dbPath = path.join(dir, "test.db");
     const db = createDb(`file:${dbPath}`);
+    openDbs.push(db);
 
     await applyMigrations(db, MIGRATIONS_FOLDER);
 
