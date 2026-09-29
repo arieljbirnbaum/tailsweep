@@ -17,8 +17,8 @@ export type DueListState = (typeof DUE_LIST_STATES)[number];
 export type DueListItemViewModel = {
   readonly id: string;
   readonly name: string;
-  /** Evaluate triage state (due | overdue | upcoming for list rows). */
-  readonly state: DueState;
+  /** List triage state only (due | overdue | upcoming). */
+  readonly state: DueListState;
   /**
    * Next due Instant at start of the local due day in the item’s zone, or null
    * when state is not_applicable. UI formats Instant → local string later.
@@ -26,20 +26,29 @@ export type DueListItemViewModel = {
   readonly nextDue: Temporal.Instant | null;
 };
 
+export function isDueListState(state: DueState): state is DueListState {
+  return (DUE_LIST_STATES as readonly string[]).includes(state);
+}
+
+/**
+ * Map one catalog + evaluated pair to a due-list VM.
+ * Fail-loud if evaluated.state is not a DueListState (caller should filter first).
+ */
 export function toDueListItemViewModel(
   item: CatalogItem,
   evaluated: EvaluatedItem,
 ): DueListItemViewModel {
+  if (!isDueListState(evaluated.state)) {
+    throw new TypeError(
+      `toDueListItemViewModel: state must be one of ${DUE_LIST_STATES.join("|")}, got: ${evaluated.state}`,
+    );
+  }
   return {
     id: item.id,
     name: item.name,
     state: evaluated.state,
     nextDue: evaluated.nextDue,
   };
-}
-
-function isDueListState(state: DueState): state is DueListState {
-  return state === "due" || state === "overdue" || state === "upcoming";
 }
 
 /**

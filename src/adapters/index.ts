@@ -11,6 +11,7 @@ export { loadAndEvaluate } from "./load-and-evaluate";
 export type { LoadAndEvaluateOptions, LoadAndEvaluateResult } from "./load-and-evaluate";
 export {
   DUE_LIST_STATES,
+  isDueListState,
   toDueListItemViewModel,
   toDueListViewModels,
 } from "./view-models";

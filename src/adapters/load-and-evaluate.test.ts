@@ -1,15 +1,23 @@
 /**
  * Frozen clock through adapter → known evaluate outcomes.
- * Temp SQLite + mappers (same cleanup pattern as migrate.test — close before rm).
+ * Temp SQLite + mappers (shared cleanup: @/db/test-temp-db).
  */
 
-import { mkdtempSync, readdirSync, rmSync, unlinkSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { applyMigrations, catalogItemToRow, catalogItems, createDb, type Db } from "@/db";
+import {
+  applyMigrations,
+  catalogItemToRow,
+  catalogItems,
+  createDb,
+  type Db,
+} from "@/db";
+import { closeClients, removeTempDirs } from "@/db/test-temp-db";
+import { InvalidCadenceError } from "@/domain";
 import { fixedClock, Temporal } from "@/engine";
 
 import { DEFAULT_HORIZON_DAYS, DEFAULT_ZONE } from "./defaults";
@@ -24,83 +32,8 @@ const ZONE = "Europe/Berlin";
 const NOW = Temporal.Instant.from("2026-09-27T12:00:00.000Z");
 const CREATED = Temporal.Instant.from("2026-09-01T08:00:00.000Z");
 const UPDATED = Temporal.Instant.from("2026-09-15T12:00:00.000Z");
-
-const RM_MAX_ATTEMPTS = 8;
-const RM_BASE_DELAY_MS = 50;
-
-function sleepMs(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function errCode(err: unknown): string {
-  return err && typeof err === "object" && "code" in err
-    ? String((err as { code: unknown }).code)
-    : "";
-}
-
-async function closeClients(clients: Db[]): Promise<void> {
-  for (const db of clients.splice(0)) {
-    try {
-      await Promise.resolve(db.$client.close());
-    } catch {
-      // already closed / disposed
-    }
-  }
-}
-
-function tryUnlinkSqliteFiles(dir: string): void {
-  let entries: string[];
-  try {
-    entries = readdirSync(dir);
-  } catch {
-    return;
-  }
-  for (const name of entries) {
-    if (
-      name.endsWith(".db") ||
-      name.endsWith(".db-wal") ||
-      name.endsWith(".db-shm") ||
-      name.endsWith("-wal") ||
-      name.endsWith("-shm")
-    ) {
-      try {
-        unlinkSync(path.join(dir, name));
-      } catch {
-        // recursive rm will retry
-      }
-    }
-  }
-}
-
-async function removeTempDirs(dirs: string[]): Promise<void> {
-  for (const dir of dirs.splice(0)) {
-    tryUnlinkSqliteFiles(dir);
-    let lastErr: unknown;
-    for (let attempt = 1; attempt <= RM_MAX_ATTEMPTS; attempt++) {
-      try {
-        rmSync(dir, { recursive: true, force: true });
-        lastErr = undefined;
-        break;
-      } catch (err) {
-        lastErr = err;
-        const code = errCode(err);
-        if (code !== "EPERM" && code !== "EBUSY") {
-          throw err;
-        }
-        if (attempt < RM_MAX_ATTEMPTS) {
-          const delay = RM_BASE_DELAY_MS + Math.min(attempt - 1, 5) * 10;
-          await sleepMs(delay);
-          tryUnlinkSqliteFiles(dir);
-        }
-      }
-    }
-    if (lastErr) {
-      console.warn(
-        `[load-and-evaluate.test] left temp dir after close+retries (${errCode(lastErr)}): ${dir}`,
-      );
-    }
-  }
-}
+const CREATED_ISO = CREATED.toString();
+const UPDATED_ISO = UPDATED.toString();
 
 function startOfLocalDay(
   instant: Temporal.Instant,
@@ -117,7 +50,7 @@ describe("adapters loadAndEvaluate", () => {
 
   afterEach(async () => {
     await closeClients(openDbs);
-    await removeTempDirs(tempDirs);
+    await removeTempDirs(tempDirs, "load-and-evaluate.test");
   });
 
   async function openTempDb(): Promise<Db> {
@@ -307,5 +240,76 @@ describe("adapters loadAndEvaluate", () => {
         [{ itemId: "b", state: "due", nextDue: TODAY_SOD }],
       ),
     ).toThrow(/itemId/);
+  });
+
+  describe("fail-loud through adapter path (bad persistence rows)", () => {
+    const badRowBase = {
+      id: "bad-row",
+      name: "Bad row",
+      cadenceJson: '{"kind":"daily"}',
+      lastDoneAt: null as string | null,
+      zone: ZONE,
+      status: "active" as const,
+      createdAt: CREATED_ISO,
+      updatedAt: UPDATED_ISO,
+    };
+
+    it("loadCatalog / loadAndEvaluate throw on empty zone", async () => {
+      const db = await openTempDb();
+      await db.insert(catalogItems).values({ ...badRowBase, zone: "" });
+
+      await expect(loadCatalog(db)).rejects.toThrow(/zone is required/);
+      await expect(
+        loadAndEvaluate(db, { clock: fixedClock(NOW) }),
+      ).rejects.toThrow(/zone is required/);
+    });
+
+    it("loadCatalog / loadAndEvaluate throw on unknown IANA zone", async () => {
+      const db = await openTempDb();
+      await db
+        .insert(catalogItems)
+        .values({ ...badRowBase, zone: "Not/A/RealZone" });
+
+      await expect(loadCatalog(db)).rejects.toThrow(/unknown IANA time zone/);
+      await expect(
+        loadAndEvaluate(db, { clock: fixedClock(NOW) }),
+      ).rejects.toThrow(/unknown IANA time zone/);
+    });
+
+    it("loadCatalog / loadAndEvaluate throw on bad last_done_at ISO", async () => {
+      const db = await openTempDb();
+      await db
+        .insert(catalogItems)
+        .values({ ...badRowBase, lastDoneAt: "not-an-instant" });
+
+      await expect(loadCatalog(db)).rejects.toThrow();
+      await expect(
+        loadAndEvaluate(db, { clock: fixedClock(NOW) }),
+      ).rejects.toThrow();
+    });
+
+    it("loadCatalog / loadAndEvaluate throw on bad cadence JSON", async () => {
+      const db = await openTempDb();
+      await db
+        .insert(catalogItems)
+        .values({ ...badRowBase, cadenceJson: '{"kind":"hourly"}' });
+
+      await expect(loadCatalog(db)).rejects.toThrow(InvalidCadenceError);
+      await expect(
+        loadAndEvaluate(db, { clock: fixedClock(NOW) }),
+      ).rejects.toThrow(InvalidCadenceError);
+    });
+
+    it("loadCatalog / loadAndEvaluate throw on non-JSON cadence", async () => {
+      const db = await openTempDb();
+      await db
+        .insert(catalogItems)
+        .values({ ...badRowBase, cadenceJson: "daily" });
+
+      await expect(loadCatalog(db)).rejects.toThrow(InvalidCadenceError);
+      await expect(
+        loadAndEvaluate(db, { clock: fixedClock(NOW) }),
+      ).rejects.toThrow(InvalidCadenceError);
+    });
   });
 });
