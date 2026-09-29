@@ -1,6 +1,7 @@
 /**
  * Migrate on a temp SQLite file, insert/select via mappers.
- * Also a light engine-purity check (no drizzle imports under src/engine).
+ * Engine purity (no zod / fat @/domain value / drizzle under src/engine) is
+ * enforced by ESLint — see eslint.config.mjs `src/engine/**` block.
  */
 
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
@@ -93,57 +94,5 @@ describe("db migrate + insert/select", () => {
     expect(sql).toMatch(/completions/);
     // zone must be NOT NULL in the generated migration
     expect(sql).toMatch(/zone.*NOT NULL|\"zone\" text NOT NULL/i);
-  });
-});
-
-/**
- * Collect value (non-type-only) import/export-from specifiers.
- * Strips block/line comments and `import type` / `export type` / all-type bindings.
- */
-function valueImportSpecifiers(source: string): string[] {
-  let cleaned = source.replace(/\/\*[\s\S]*?\*\//g, "");
-  cleaned = cleaned.replace(/^\s*\/\/.*$/gm, "");
-  cleaned = cleaned.replace(
-    /(?:import|export)\s+type\s+[\s\S]*?from\s+["'][^"']+["']\s*;?/g,
-    "",
-  );
-  cleaned = cleaned.replace(
-    /import\s*\{([^}]*)\}\s*from\s*["']([^"']+)["']\s*;?/g,
-    (full, bindings: string, _spec: string) => {
-      const parts = bindings
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      if (parts.length > 0 && parts.every((part) => /^type\s+/.test(part))) {
-        return "";
-      }
-      return full;
-    },
-  );
-  const specs: string[] = [];
-  const fromRe = /(?:import|export)\s+[^;]*?\bfrom\s+["']([^"']+)["']/g;
-  let match: RegExpExecArray | null;
-  while ((match = fromRe.exec(cleaned)) !== null) {
-    specs.push(match[1]!);
-  }
-  return specs;
-}
-
-describe("engine purity (light)", () => {
-  it("src/engine has no drizzle / libsql / src/db / zod / fat @/domain value imports", () => {
-    const engineDir = path.join(process.cwd(), "src/engine");
-    const files = readdirSync(engineDir).filter((f) => f.endsWith(".ts"));
-    for (const file of files) {
-      const text = readFileSync(path.join(engineDir, file), "utf8");
-      expect(text, file).not.toMatch(
-        /drizzle-orm|@libsql|from ["']@\/db|from ["']\.\.\/db|from ["']zod["']/,
-      );
-      for (const spec of valueImportSpecifiers(text)) {
-        // Thin domain error module is allowed; fat @/domain barrel is not.
-        expect(spec, `${file} value-imports forbidden specifier ${spec}`).not.toMatch(
-          /^@\/domain\/?$|^@\/domain\/index$/,
-        );
-      }
-    }
   });
 });

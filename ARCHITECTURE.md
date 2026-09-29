@@ -160,6 +160,6 @@ Persistence lives **outside** `src/engine`. The engine stays pure (no Drizzle / 
 - [ ] New due behavior: update ARCHITECTURE state/cadence rules and add/adjust a table row in `evaluate.test.ts`.
 - [ ] `pnpm typecheck` && `pnpm lint` && `pnpm test` (tests green once engine is implemented).
 - [ ] Times are `Temporal.Instant`; every `CatalogItem` has required `zone`; every evaluate\* call passes `horizonDays`.
-- [ ] Lint enforces **no `Date`** (repo-wide) and **no `Temporal.Now`** under `src/engine/**`; production clock stays outside the engine (`src/time/system-clock.ts`).
+- [ ] Lint enforces **no `Date`** (repo-wide), **no `Temporal.Now`**, **no `zod`**, and **no value `@/domain` barrel** under `src/engine/**` (`@/domain/errors` + type-only `@/domain` allowed); production clock stays outside the engine (`src/time/system-clock.ts`).
 - [ ] No due math added to `src/db`.
 - [ ] README / ARCHITECTURE updated if the contract changed.
