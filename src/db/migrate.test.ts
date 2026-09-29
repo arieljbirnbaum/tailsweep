@@ -4,7 +4,7 @@
  * enforced by ESLint — see eslint.config.mjs `src/engine/**` block.
  */
 
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -29,37 +29,89 @@ const UPDATED = Temporal.Instant.from("2026-09-15T12:00:00.000Z");
 const LAST_DONE = Temporal.Instant.from("2026-09-20T10:00:00.000Z");
 const COMPLETED_AT = Temporal.Instant.from("2026-09-20T10:05:00.000Z");
 
+const RM_MAX_ATTEMPTS = 8;
+const RM_BASE_DELAY_MS = 50;
+
 function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Close libsql clients first so Windows can delete the locked DB files. */
-function closeClients(clients: Db[]): void {
+function errCode(err: unknown): string {
+  return err && typeof err === "object" && "code" in err
+    ? String((err as { code: unknown }).code)
+    : "";
+}
+
+/**
+ * Close libsql clients first so Windows can delete the locked DB files.
+ * @libsql/client@0.18 Client.close() is sync (`void`); still await if a
+ * Promise is returned so future/async close implementations stay correct.
+ */
+async function closeClients(clients: Db[]): Promise<void> {
   for (const db of clients.splice(0)) {
     try {
-      db.$client.close();
+      await Promise.resolve(db.$client.close());
     } catch {
       // already closed / disposed
     }
   }
 }
 
+/** Best-effort: drop SQLite main + WAL/SHM files before rmdir (Windows). */
+function tryUnlinkSqliteFiles(dir: string): void {
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of entries) {
+    if (
+      name.endsWith(".db") ||
+      name.endsWith(".db-wal") ||
+      name.endsWith(".db-shm") ||
+      name.endsWith("-wal") ||
+      name.endsWith("-shm")
+    ) {
+      try {
+        unlinkSync(path.join(dir, name));
+      } catch {
+        // recursive rm will retry; ignore here
+      }
+    }
+  }
+}
+
 async function removeTempDirs(dirs: string[]): Promise<void> {
   for (const dir of dirs.splice(0)) {
-    try {
-      rmSync(dir, { recursive: true, force: true });
-    } catch (err) {
-      // Windows: handle may linger briefly after close; one short retry.
-      const code =
-        err && typeof err === "object" && "code" in err
-          ? String((err as { code: unknown }).code)
-          : "";
-      if (code === "EPERM" || code === "EBUSY") {
-        await sleepMs(50);
+    tryUnlinkSqliteFiles(dir);
+
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= RM_MAX_ATTEMPTS; attempt++) {
+      try {
         rmSync(dir, { recursive: true, force: true });
-      } else {
-        throw err;
+        lastErr = undefined;
+        break;
+      } catch (err) {
+        lastErr = err;
+        const code = errCode(err);
+        if (code !== "EPERM" && code !== "EBUSY") {
+          throw err;
+        }
+        if (attempt < RM_MAX_ATTEMPTS) {
+          // Backoff ~50–100ms+ between retries (Windows file-lock linger).
+          const delay = RM_BASE_DELAY_MS + Math.min(attempt - 1, 5) * 10;
+          await sleepMs(delay);
+          tryUnlinkSqliteFiles(dir);
+        }
       }
+    }
+
+    if (lastErr) {
+      // Leftover temp dirs are acceptable; assertions under test already passed.
+      console.warn(
+        `[migrate.test] left temp dir after close+retries (${errCode(lastErr)}): ${dir}`,
+      );
     }
   }
 }
@@ -69,7 +121,7 @@ describe("db migrate + insert/select", () => {
   const openDbs: Db[] = [];
 
   afterEach(async () => {
-    closeClients(openDbs);
+    await closeClients(openDbs);
     await removeTempDirs(tempDirs);
   });
 
