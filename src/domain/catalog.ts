@@ -6,7 +6,7 @@
 
 import { z } from "zod";
 
-import { cadenceSchema, parseCadenceJson, type Cadence } from "./cadence";
+import { cadenceSchema, parseCadence, parseCadenceJson, type Cadence } from "./cadence";
 import { instantToIso, parseInstant, parseNullableInstantIso } from "./instant";
 import type { Temporal } from "./temporal";
 
@@ -94,7 +94,7 @@ export function parseCatalogItem(input: {
 }): CatalogItem {
   const id = z.string().min(1).parse(input.id);
   const name = z.string().min(1).parse(input.name);
-  const cadence = cadenceSchema.parse(input.cadence);
+  const cadence = parseCadence(input.cadence);
   const zone = parseZone(input.zone);
   const status = parseCatalogItemStatus(input.status);
 

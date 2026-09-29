@@ -2,11 +2,11 @@
  * Typed errors for the pure due-engine.
  * Never swallow these — callers should surface them for debuggability.
  *
- * InvalidCadenceError lives in domain (parse boundary); re-exported here for
- * stable `@/engine` consumers.
+ * InvalidCadenceError lives in `@/domain/errors` (thin, no Zod); re-exported
+ * here for stable `@/engine` consumers. Do not value-import the fat `@/domain` barrel.
  */
 
-export { InvalidCadenceError } from "@/domain";
+export { InvalidCadenceError } from "@/domain/errors";
 
 export class NotImplementedError extends Error {
   readonly code = "NOT_IMPLEMENTED" as const;

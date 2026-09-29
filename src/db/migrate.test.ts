@@ -96,8 +96,41 @@ describe("db migrate + insert/select", () => {
   });
 });
 
+/**
+ * Collect value (non-type-only) import/export-from specifiers.
+ * Strips block/line comments and `import type` / `export type` / all-type bindings.
+ */
+function valueImportSpecifiers(source: string): string[] {
+  let cleaned = source.replace(/\/\*[\s\S]*?\*\//g, "");
+  cleaned = cleaned.replace(/^\s*\/\/.*$/gm, "");
+  cleaned = cleaned.replace(
+    /(?:import|export)\s+type\s+[\s\S]*?from\s+["'][^"']+["']\s*;?/g,
+    "",
+  );
+  cleaned = cleaned.replace(
+    /import\s*\{([^}]*)\}\s*from\s*["']([^"']+)["']\s*;?/g,
+    (full, bindings: string, _spec: string) => {
+      const parts = bindings
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (parts.length > 0 && parts.every((part) => /^type\s+/.test(part))) {
+        return "";
+      }
+      return full;
+    },
+  );
+  const specs: string[] = [];
+  const fromRe = /(?:import|export)\s+[^;]*?\bfrom\s+["']([^"']+)["']/g;
+  let match: RegExpExecArray | null;
+  while ((match = fromRe.exec(cleaned)) !== null) {
+    specs.push(match[1]!);
+  }
+  return specs;
+}
+
 describe("engine purity (light)", () => {
-  it("src/engine has no drizzle / libsql / src/db / zod imports", () => {
+  it("src/engine has no drizzle / libsql / src/db / zod / fat @/domain value imports", () => {
     const engineDir = path.join(process.cwd(), "src/engine");
     const files = readdirSync(engineDir).filter((f) => f.endsWith(".ts"));
     for (const file of files) {
@@ -105,6 +138,12 @@ describe("engine purity (light)", () => {
       expect(text, file).not.toMatch(
         /drizzle-orm|@libsql|from ["']@\/db|from ["']\.\.\/db|from ["']zod["']/,
       );
+      for (const spec of valueImportSpecifiers(text)) {
+        // Thin domain error module is allowed; fat @/domain barrel is not.
+        expect(spec, `${file} value-imports forbidden specifier ${spec}`).not.toMatch(
+          /^@\/domain\/?$|^@\/domain\/index$/,
+        );
+      }
     }
   });
 });

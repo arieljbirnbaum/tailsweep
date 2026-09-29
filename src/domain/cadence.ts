@@ -52,11 +52,35 @@ export const cadenceSchema = z.union([namedCadenceSchema, everyNDaysCadenceSchem
 
 export type Cadence = z.infer<typeof cadenceSchema>;
 
-function cadenceParseMessage(err: z.ZodError): string {
-  const first = err.issues[0];
-  if (!first) return "invalid cadence";
-  const path = first.path.length > 0 ? first.path.join(".") : "cadence";
-  return `${path}: ${first.message}`;
+/**
+ * Stable human-readable InvalidCadenceError copy (not Zod's "Too small" /
+ * "Invalid input"). Prefer prior hand-rolled messages from the mapper era.
+ */
+function cadenceFailureMessage(raw: unknown, source: "cadence" | "cadence_json"): string {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    return source === "cadence_json"
+      ? `cadence_json must be a JSON object, got ${typeof raw}`
+      : `cadence must be a JSON object, got ${typeof raw}`;
+  }
+
+  const obj = raw as Record<string, unknown>;
+  const kind = obj.kind;
+
+  if (typeof kind !== "string") {
+    return source === "cadence_json"
+      ? "cadence_json.kind must be a string"
+      : "cadence.kind must be a string";
+  }
+
+  if (kind === "every_n_days") {
+    return "every_n_days requires positive integer days and no extra keys";
+  }
+
+  if ((NAMED_KINDS as readonly string[]).includes(kind)) {
+    return `named cadence ${kind} must have only { kind }`;
+  }
+
+  return `unknown cadence kind: ${kind}`;
 }
 
 /**
@@ -66,7 +90,7 @@ function cadenceParseMessage(err: z.ZodError): string {
 export function parseCadence(raw: unknown): Cadence {
   const result = cadenceSchema.safeParse(raw);
   if (!result.success) {
-    throw new InvalidCadenceError(cadenceParseMessage(result.error));
+    throw new InvalidCadenceError(cadenceFailureMessage(raw, "cadence"));
   }
   return result.data;
 }
@@ -81,7 +105,11 @@ export function parseCadenceJson(json: string): Cadence {
   } catch {
     throw new InvalidCadenceError(`cadence_json is not valid JSON: ${json}`);
   }
-  return parseCadence(raw);
+  const result = cadenceSchema.safeParse(raw);
+  if (!result.success) {
+    throw new InvalidCadenceError(cadenceFailureMessage(raw, "cadence_json"));
+  }
+  return result.data;
 }
 
 export function serializeCadence(cadence: Cadence): string {

@@ -22,7 +22,7 @@ Dependencies point **inward only**:
 
 - `src/app` may import `@/engine`, `@/db`, and `@/domain`
 - `src/db` may import `@/domain` (parsers) and `@/engine` (evaluate at edges) — **never** the other way from engine/domain into db
-- `src/engine` may import **types** (and shared errors) from `@/domain` — must **never** import Next, React, Drizzle, Zod for runtime parse on evaluate*, `fs`, `fetch`, Node I/O, or anything under `src/app` / `src/db`
+- `src/engine` may import **types** from `@/domain` (type-only) and shared errors from `@/domain/errors` (thin, no Zod) — must **never** value-import the fat `@/domain` barrel, nor import Next, React, Drizzle, Zod for runtime parse on evaluate*, `fs`, `fetch`, Node I/O, or anything under `src/app` / `src/db`
 - `src/domain` must **never** import engine evaluate logic, Drizzle, Next, or React
 
 **Domain owns** Zod schemas + constrained types (`Cadence`, `CatalogItem`, Instant ISO helpers, zone/status). **Engine** stays pure functional due math and may depend on domain for typedefs only — do **not** run Zod on every `evaluate*` call. **Adapters/persistence** call domain `parse*` helpers at the boundary (fail-loud; no permissive coercions).
@@ -155,7 +155,7 @@ Persistence lives **outside** `src/engine`. The engine stays pure (no Drizzle / 
 
 ## PR checklist
 
-- [ ] Engine still has **zero** Next/React/Drizzle/fs/fetch imports (`rg` the folder); no `zod` import under `src/engine` (domain owns runtime parse).
+- [ ] Engine still has **zero** Next/React/Drizzle/fs/fetch imports (`rg` the folder); no `zod` or fat `@/domain` value import under `src/engine` (domain owns runtime parse; errors via `@/domain/errors`).
 - [ ] Domain schemas remain the source of truth for Cadence / CatalogItem constraints; persistence uses domain parsers.
 - [ ] New due behavior: update ARCHITECTURE state/cadence rules and add/adjust a table row in `evaluate.test.ts`.
 - [ ] `pnpm typecheck` && `pnpm lint` && `pnpm test` (tests green once engine is implemented).
