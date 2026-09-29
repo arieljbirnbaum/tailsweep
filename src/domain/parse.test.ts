@@ -1,5 +1,5 @@
 /**
- * Focused domain parse failures — invalid everyN, bad ISO, empty zone.
+ * Focused domain parse failures — invalid everyN, bad ISO, empty/unknown zone.
  * Happy-path cadence/catalog round-trips live in src/db/mappers.test.ts.
  */
 
@@ -38,8 +38,7 @@ describe("parseCadence / every_n_days", () => {
 });
 
 describe("InvalidCadenceError golden messages", () => {
-  const EVERY_N =
-    "InvalidCadenceError: every_n_days requires positive integer days and no extra keys";
+  const EVERY_N = /every_n_days requires positive integer days and no extra keys/;
 
   it.each([
     { name: "zero days", raw: { kind: "every_n_days", days: 0 } },
@@ -49,45 +48,50 @@ describe("InvalidCadenceError golden messages", () => {
     { name: "extra key", raw: { kind: "every_n_days", days: 2, x: 1 } },
   ])("parseCadence $name", ({ raw }) => {
     expect(() => parseCadence(raw)).toThrowError(EVERY_N);
+    try {
+      parseCadence(raw);
+    } catch (err) {
+      expect(err).toBeInstanceOf(InvalidCadenceError);
+      expect((err as Error).message).toMatch(/\([^)]+:/);
+    }
   });
 
   it("unknown kind", () => {
     expect(() => parseCadence({ kind: "hourly" })).toThrowError(
-      "InvalidCadenceError: unknown cadence kind: hourly",
+      /unknown cadence kind: hourly/,
     );
   });
 
   it("named cadence with extra key", () => {
     expect(() => parseCadence({ kind: "daily", days: 1 })).toThrowError(
-      "InvalidCadenceError: named cadence daily must have only { kind }",
+      /named cadence daily must have only \{ kind \}/,
     );
   });
 
   it("non-object", () => {
     expect(() => parseCadence("daily")).toThrowError(
-      "InvalidCadenceError: cadence must be a JSON object, got string",
+      /cadence must be a JSON object, got string/,
     );
   });
 
   it("missing kind", () => {
-    expect(() => parseCadence({})).toThrowError(
-      "InvalidCadenceError: cadence.kind must be a string",
-    );
+    expect(() => parseCadence({})).toThrowError(/cadence\.kind must be a string/);
   });
 
-  it("parseCadenceJson invalid JSON", () => {
+  it("parseCadenceJson invalid JSON includes SyntaxError message", () => {
     expect(() => parseCadenceJson("daily")).toThrowError(
-      "InvalidCadenceError: cadence_json is not valid JSON: daily",
+      /cadence_json is not valid JSON: Unexpected token/,
     );
+    expect(() => parseCadenceJson("daily")).not.toThrowError(/: daily$/);
   });
 
   it("parseCadenceJson non-object uses cadence_json prefix", () => {
     expect(() => parseCadenceJson("null")).toThrowError(
-      "InvalidCadenceError: cadence_json must be a JSON object, got object",
+      /cadence_json must be a JSON object, got object/,
     );
   });
 
-  it("parseCadenceJson zero days keeps hand-rolled every_n message", () => {
+  it("parseCadenceJson zero days keeps hand-rolled every_n message plus Zod detail", () => {
     expect(() => parseCadenceJson('{"kind":"every_n_days","days":0}')).toThrowError(
       EVERY_N,
     );
@@ -110,8 +114,12 @@ describe("parseInstantIso", () => {
 });
 
 describe("parseZone", () => {
-  it("accepts IANA id", () => {
+  it("accepts IANA id Europe/Berlin", () => {
     expect(parseZone("Europe/Berlin")).toBe("Europe/Berlin");
+  });
+
+  it("accepts UTC (Temporal-valid even when Intl omits it)", () => {
+    expect(parseZone("UTC")).toBe("UTC");
   });
 
   it("rejects empty zone", () => {
@@ -120,6 +128,14 @@ describe("parseZone", () => {
 
   it("rejects whitespace-only zone", () => {
     expect(() => parseZone("   ")).toThrow(/zone is required/);
+  });
+
+  it("rejects padded zone (no trim coercion)", () => {
+    expect(() => parseZone(" Europe/Berlin ")).toThrow(/whitespace/);
+  });
+
+  it("rejects unknown IANA id at parseZone (not only evaluate)", () => {
+    expect(() => parseZone("Not/ARealZone")).toThrow(/unknown IANA time zone/);
   });
 });
 
@@ -137,6 +153,19 @@ describe("parseCatalogItem", () => {
     ).toThrow(/zone is required/);
   });
 
+  it("rejects nonsense zone at parse (not deferred to evaluate)", () => {
+    expect(() =>
+      parseCatalogItem({
+        id: "x",
+        name: "x",
+        cadence: { kind: "daily" },
+        lastDone: null,
+        zone: "Fake/Zone",
+        status: "active",
+      }),
+    ).toThrow(/unknown IANA time zone/);
+  });
+
   it("days:0 throws InvalidCadenceError (not raw ZodError)", () => {
     let caught: unknown;
     try {
@@ -152,9 +181,9 @@ describe("parseCatalogItem", () => {
       caught = err;
     }
     expect(caught).toBeInstanceOf(InvalidCadenceError);
-    expect(caught).toMatchObject({
-      message:
-        "InvalidCadenceError: every_n_days requires positive integer days and no extra keys",
-    });
+    expect((caught as Error).message).toMatch(
+      /every_n_days requires positive integer days and no extra keys/,
+    );
+    expect((caught as Error).message).toMatch(/days:/);
   });
 });

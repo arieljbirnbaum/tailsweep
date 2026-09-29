@@ -56,7 +56,7 @@ Behavioral contract is this doc plus the table-driven cases in `evaluate.test.ts
 - **Midnight / DST**: when a local midnight is ambiguous or skipped, use Temporal’s default disambiguation **`compatible`**. Lock spring/fall SOD Instants in `evaluate.test.ts`; do not invent silent half-hour offsets. No `options.timeZone`, no `"UTC"` default in evaluate\*.
 - UX/adapters supply `zone` on each catalog item and `horizonDays` on every evaluate\* call. The engine requires both; it does not pick a dogfood default.
 - `horizonDays` (required): how far ahead “upcoming” extends; beyond horizon → `not_applicable`.
-- Invalid Instant / zone strings: let Temporal construction throw (`TypeError` / `RangeError`). Adapters own validation — the engine does **not** expose `assertDate` / `InvalidDateError`.
+- Invalid Instant strings: let Temporal construction throw (`TypeError` / `RangeError`). **Zone** is validated at the domain boundary (`zoneSchema` / `parseZone`) against runtime tzdata via `Intl.supportedValuesOf("timeZone")` (Temporal fallback for ids Intl omits, e.g. `UTC`); unknown / padded zones fail loud at parse — not deferred to evaluate. Adapters own validation — the engine does **not** expose `assertDate` / `InvalidDateError`.
 
 ### Temporal polyfill & runtime
 

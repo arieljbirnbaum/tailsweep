@@ -83,6 +83,46 @@ function cadenceFailureMessage(raw: unknown, source: "cadence" | "cadence_json")
   return `unknown cadence kind: ${kind}`;
 }
 
+/** First actionable Zod issue (walks invalid_union branches). */
+function firstZodIssue(issues: z.core.$ZodIssue[]): z.core.$ZodIssue | undefined {
+  for (const issue of issues) {
+    if (issue.code === "invalid_union") {
+      for (const branch of issue.errors) {
+        const leaf = firstZodIssue(branch);
+        if (leaf) return leaf;
+      }
+      continue;
+    }
+    return issue;
+  }
+  return undefined;
+}
+
+/** Compact Zod detail: `path: message` (or prettify first line). */
+function formatZodCompact(error: z.ZodError): string {
+  const leaf = firstZodIssue(error.issues);
+  if (leaf) {
+    const path = leaf.path.length > 0 ? leaf.path.join(".") : "root";
+    return `${path}: ${leaf.message}`;
+  }
+  const pretty = z.prettifyError(error);
+  const firstLine = pretty
+    .split("\n")
+    .map((line) => line.replace(/^[✖x]\s*/u, "").trim())
+    .find((line) => line.length > 0);
+  return firstLine ?? "invalid input";
+}
+
+function invalidCadenceFromZod(
+  raw: unknown,
+  source: "cadence" | "cadence_json",
+  error: z.ZodError,
+): InvalidCadenceError {
+  return new InvalidCadenceError(
+    `${cadenceFailureMessage(raw, source)} (${formatZodCompact(error)})`,
+  );
+}
+
 /**
  * Strict Cadence parse from unknown. Throws InvalidCadenceError on bad shape.
  * No permissive coercions (string|object unions beyond the Cadence contract).
@@ -90,7 +130,7 @@ function cadenceFailureMessage(raw: unknown, source: "cadence" | "cadence_json")
 export function parseCadence(raw: unknown): Cadence {
   const result = cadenceSchema.safeParse(raw);
   if (!result.success) {
-    throw new InvalidCadenceError(cadenceFailureMessage(raw, "cadence"));
+    throw invalidCadenceFromZod(raw, "cadence", result.error);
   }
   return result.data;
 }
@@ -102,12 +142,13 @@ export function parseCadenceJson(json: string): Cadence {
   let raw: unknown;
   try {
     raw = JSON.parse(json) as unknown;
-  } catch {
-    throw new InvalidCadenceError(`cadence_json is not valid JSON: ${json}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new InvalidCadenceError(`cadence_json is not valid JSON: ${message}`);
   }
   const result = cadenceSchema.safeParse(raw);
   if (!result.success) {
-    throw new InvalidCadenceError(cadenceFailureMessage(raw, "cadence_json"));
+    throw invalidCadenceFromZod(raw, "cadence_json", result.error);
   }
   return result.data;
 }
