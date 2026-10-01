@@ -2,9 +2,10 @@
 /**
  * Regression: blanket type-assertion lint.
  * - Banned patterns (Cadence forges, aliases, readonly casts, literal forges,
- *   chained `as unknown as T`) must fail no-restricted-syntax.
- * - Allowlisted patterns (`as const`, `as Error`, `as Record<…>`, `as unknown`)
- *   must stay clean — and chains involving allowlisted steps must still fail.
+ *   chained `as unknown as T`, formerly-allowlisted `as Record` / `as Error` /
+ *   `as unknown`) must fail no-restricted-syntax.
+ * - Allowlisted patterns (`as const` / `<const>` only) must stay clean —
+ *   and chains involving those steps must still fail.
  * Uses ESLint lintText + repo config.
  */
 import { ESLint } from "eslint";
@@ -92,13 +93,31 @@ const _bad = (raw as unknown) as Error;
 `,
   },
   {
+    name: "formerly-allowlisted-record.ts",
+    mustFail: true,
+    code: `const raw: unknown = {};
+const _bad = raw as Record<string, unknown>;
+`,
+  },
+  {
+    name: "formerly-allowlisted-error.ts",
+    mustFail: true,
+    code: `const raw: unknown = {};
+const _bad = raw as Error;
+`,
+  },
+  {
+    name: "formerly-allowlisted-unknown.ts",
+    mustFail: true,
+    code: `const raw: object = {};
+const _bad = raw as unknown;
+`,
+  },
+  {
     name: "allowlist-ok.ts",
     mustFail: false,
     code: `const _ok = { kind: "daily" } as const;
-const raw: unknown = {};
-const _err = raw as Error;
-const _rec = raw as Record<string, unknown>;
-const _unk = raw as unknown;
+const _arr = ["daily"] as const;
 `,
   },
 ];

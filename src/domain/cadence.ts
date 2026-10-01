@@ -47,9 +47,8 @@ const everyNDaysCadenceSchema = z
  * Named kinds use calendar periods in the item's zone; `every_n_days` adds a
  * fixed day count. Valid-by-construction via parseCadence / parseCadenceJson.
  * Plain literals are not assignable. ESLint blanket-bans type assertions
- * except a documented allowlist (`as const`, `as Record<…>`, `as Error`,
- * `as unknown`; never chained). The engine trusts branded inputs and does
- * not re-validate.
+ * except `as const` / `<const>` (other escapes need a scoped carve-out;
+ * never chained). The engine trusts branded inputs and does not re-validate.
  */
 export const cadenceSchema = z
   .union([namedCadenceSchema, everyNDaysCadenceSchema])

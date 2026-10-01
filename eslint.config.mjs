@@ -17,26 +17,23 @@ const engineDbBanMessage =
 
 /**
  * Ariel soundness: blanket-forbid type assertions; only documented allowlist
- * escapes. `as unknown` is never a stepping stone — chained assertions banned.
+ * escapes. Chained assertions are always banned (no forge stepping-stones).
  *
  * Allowlist (typeAnnotation shapes in typescript-eslint AST):
  * - `as const` / `<const>` → TSTypeReference typeName "const"
- * - `as unknown` / `<unknown>` → TSUnknownKeyword
- * - `as Error` → TSTypeReference typeName "Error"
- * - `as Record<…>` → TSTypeReference typeName "Record"
+ *
+ * Other assertions (`as Record`, `as Error`, `as unknown`, …) are forbidden
+ * until a documented scoped carve-out is added (see ARCHITECTURE.md).
  */
 const typeAssertionBanMessage =
-  "Type assertions (`as Type` / `<Type>`) are banned except the documented allowlist: `as const`, `as Record<…>`, `as Error`, `as unknown`. Prefer valid-by-construction parsers, `in`/instanceof narrowing, or rewrite types. See ARCHITECTURE.md.";
+  "Type assertions (`as Type` / `<Type>`) are banned except the documented allowlist: `as const` / `<const>`. Prefer valid-by-construction parsers, `in`/instanceof narrowing, or rewrite types. Other escapes need a scoped carve-out + ARCHITECTURE justification. See ARCHITECTURE.md.";
 
 const typeAssertionChainBanMessage =
-  "Chained type assertions (e.g. `x as unknown as Cadence`) are banned. `as unknown` is a justified untyped edge only — never a forge/stepping-stone to another type.";
+  "Chained type assertions (e.g. `x as unknown as Cadence`) are banned. Assertions must not be used as forge/stepping-stones to another type.";
 
-/** Match assertions whose typeAnnotation is NOT one of the four allowlisted forms. */
+/** Match assertions whose typeAnnotation is NOT the allowlisted `as const` / `<const>`. */
 const notAllowlistedAssertion =
-  ":not([typeAnnotation.typeName.name='const'])" +
-  ":not([typeAnnotation.type='TSUnknownKeyword'])" +
-  ":not([typeAnnotation.typeName.name='Error'])" +
-  ":not([typeAnnotation.typeName.name='Record'])";
+  ":not([typeAnnotation.typeName.name='const'])";
 
 const typeAssertionRestrictedSyntax = [
   {
