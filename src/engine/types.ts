@@ -11,9 +11,7 @@ import type { Temporal } from "./temporal";
 
 export type {
   Cadence,
-  NamedCadence,
   NamedCadenceKind,
-  EveryNDaysCadence,
   CatalogItem,
   CatalogItemStatus,
   EvaluateOptions,

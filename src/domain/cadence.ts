@@ -23,37 +23,32 @@ export const namedCadenceKindSchema = z.enum(NAMED_KINDS);
 
 export type NamedCadenceKind = z.infer<typeof namedCadenceKindSchema>;
 
-/** Named cadence: { kind } only — extra keys rejected (.strict()). */
-export const namedCadenceSchema = z
+/** Internal named cadence: { kind } only — not a public construction door. */
+const namedCadenceSchema = z
   .object({
     kind: namedCadenceKindSchema,
   })
   .strict();
 
-export type NamedCadence = z.infer<typeof namedCadenceSchema>;
-
 /**
  * Fixed interval of N calendar days (completion-anchored).
  * `days` must be a positive integer (≥ 1).
+ * Internal schema — construct Cadence via parseCadence only.
  */
-export const everyNDaysCadenceSchema = z
+const everyNDaysCadenceSchema = z
   .object({
     kind: z.literal("every_n_days"),
     days: z.number().int().positive(),
   })
   .strict();
 
-export type EveryNDaysCadence = z.infer<typeof everyNDaysCadenceSchema>;
 
 /**
- * How often an item should be completed again after lastDone.
- * - Named kinds use calendar periods in the item's time zone.
- * - `every_n_days` adds a fixed day count from lastDone's local date.
- */
-/**
- * Branded Cadence — valid-by-construction through parseCadence / parseCadenceJson.
- * Plain object literals are not assignable (TS `as Cadence` is the known hole;
- * engine keeps a cheap last-line assert until parse is the exclusive door).
+ * Branded Cadence — how often an item should be completed again after lastDone.
+ * Named kinds use calendar periods in the item's zone; `every_n_days` adds a
+ * fixed day count. Valid-by-construction via parseCadence / parseCadenceJson.
+ * Plain literals are not assignable. ESLint forbids `as Cadence`; the engine
+ * trusts branded inputs and does not re-validate.
  */
 export const cadenceSchema = z
   .union([namedCadenceSchema, everyNDaysCadenceSchema])

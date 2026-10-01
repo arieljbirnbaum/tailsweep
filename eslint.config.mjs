@@ -15,6 +15,38 @@ const engineDomainValueBanMessage =
 const engineDbBanMessage =
   "Do not import persistence (drizzle / libsql / @/db) under src/engine. Persistence lives outside the engine.";
 
+const brandAssertionBanMessage =
+  "Do not assert `as Cadence` / `as EvaluateOptions`. Construct via domain parseCadence / parseEvaluateOptions (valid-by-construction). Type assertions reopen the brand hole.";
+
+/** Ban Date construction / static calls (repo-wide). */
+const dateRestrictedSyntax = [
+  {
+    selector: "NewExpression[callee.name='Date']",
+    message: dateBanMessage,
+  },
+  {
+    selector: "CallExpression[callee.object.name='Date']",
+    message: dateBanMessage,
+  },
+];
+
+/**
+ * Ban TypeScript `as Cadence` / `as EvaluateOptions` (and angle-bracket form).
+ * Construction + this lint close the brand hole; engine does not re-validate.
+ */
+const brandAssertionRestrictedSyntax = [
+  {
+    selector:
+      "TSAsExpression[typeAnnotation.typeName.name=/^(Cadence|EvaluateOptions)$/]",
+    message: brandAssertionBanMessage,
+  },
+  {
+    selector:
+      "TSTypeAssertion[typeAnnotation.typeName.name=/^(Cadence|EvaluateOptions)$/]",
+    message: brandAssertionBanMessage,
+  },
+];
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -57,30 +89,19 @@ const eslintConfig = defineConfig([
       ],
       "no-restricted-syntax": [
         "error",
-        {
-          selector: "NewExpression[callee.name='Date']",
-          message: dateBanMessage,
-        },
-        {
-          selector: "CallExpression[callee.object.name='Date']",
-          message: dateBanMessage,
-        },
+        ...dateRestrictedSyntax,
+        ...brandAssertionRestrictedSyntax,
       ],
     },
   },
   {
     files: ["src/engine/**/*.{ts,tsx}"],
     rules: {
+      // Flat config replaces the whole rule — keep Date + brand bans + engine extras.
       "no-restricted-syntax": [
         "error",
-        {
-          selector: "NewExpression[callee.name='Date']",
-          message: dateBanMessage,
-        },
-        {
-          selector: "CallExpression[callee.object.name='Date']",
-          message: dateBanMessage,
-        },
+        ...dateRestrictedSyntax,
+        ...brandAssertionRestrictedSyntax,
         {
           selector: "MemberExpression[object.name='Temporal'][property.name='Now']",
           message:

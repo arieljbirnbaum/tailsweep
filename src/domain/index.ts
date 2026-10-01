@@ -12,8 +12,6 @@ export { InvalidCadenceError } from "./errors";
 
 export {
   namedCadenceKindSchema,
-  namedCadenceSchema,
-  everyNDaysCadenceSchema,
   cadenceSchema,
   parseCadence,
   parseCadenceJson,
@@ -21,8 +19,6 @@ export {
 } from "./cadence";
 export type {
   NamedCadenceKind,
-  NamedCadence,
-  EveryNDaysCadence,
   Cadence,
 } from "./cadence";
 

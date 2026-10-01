@@ -32,6 +32,7 @@ describe("parseCadence / every_n_days", () => {
     { name: "zero", raw: { kind: "every_n_days", days: 0 } },
     { name: "negative", raw: { kind: "every_n_days", days: -3 } },
     { name: "float", raw: { kind: "every_n_days", days: 1.5 } },
+    { name: "NaN", raw: { kind: "every_n_days", days: Number.NaN } },
     { name: "missing days", raw: { kind: "every_n_days" } },
   ])("rejects $name as InvalidCadenceError", ({ raw }) => {
     expect(() => parseCadence(raw)).toThrow(InvalidCadenceError);
@@ -45,6 +46,7 @@ describe("InvalidCadenceError golden messages", () => {
     { name: "zero days", raw: { kind: "every_n_days", days: 0 } },
     { name: "negative days", raw: { kind: "every_n_days", days: -3 } },
     { name: "float days", raw: { kind: "every_n_days", days: 1.5 } },
+    { name: "NaN days", raw: { kind: "every_n_days", days: Number.NaN } },
     { name: "missing days", raw: { kind: "every_n_days" } },
     { name: "extra key", raw: { kind: "every_n_days", days: 2, x: 1 } },
   ])("parseCadence $name", ({ raw }) => {
@@ -199,6 +201,7 @@ describe("branded Cadence — invalid cannot be built via public API", () => {
     { name: "zero days", raw: { kind: "every_n_days", days: 0 } },
     { name: "negative days", raw: { kind: "every_n_days", days: -1 } },
     { name: "float days", raw: { kind: "every_n_days", days: 2.5 } },
+    { name: "NaN days", raw: { kind: "every_n_days", days: Number.NaN } },
     { name: "unknown kind", raw: { kind: "hourly" } },
   ])("rejects $name — no Cadence value escapes", ({ raw }) => {
     expect(() => parseCadence(raw)).toThrow(InvalidCadenceError);

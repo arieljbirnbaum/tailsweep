@@ -22,8 +22,8 @@ export type EvaluateOptions = z.infer<typeof evaluateOptionsSchema>;
 
 /**
  * Strict EvaluateOptions parse from unknown.
- * Throws RangeError on ≤ 0 / non-integer / bad shape (same contract as the
- * engine’s cheap last-line assert). No permissive coercions; no defaults.
+ * Throws RangeError on ≤ 0 / non-integer / bad shape.
+ * No permissive coercions; no defaults. Engine trusts the branded result.
  */
 export function parseEvaluateOptions(raw: unknown): EvaluateOptions {
   const result = evaluateOptionsSchema.safeParse(raw);

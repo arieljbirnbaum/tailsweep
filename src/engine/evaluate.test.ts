@@ -10,7 +10,6 @@ import { describe, expect, it } from "vitest";
 import { parseCadence } from "@/domain/cadence";
 import { parseEvaluateOptions } from "@/domain/evaluate-options";
 import { evaluateItem, evaluateCatalog } from "./evaluate";
-import { InvalidCadenceError } from "./errors";
 import { Temporal } from "./temporal";
 import type { Cadence, CatalogItem, DueState, EvaluateOptions } from "./types";
 
@@ -458,55 +457,5 @@ describe("evaluateCatalog contract", () => {
 
   it("empty catalog → empty results", () => {
     expect(evaluateCatalog([], NOW, options(HORIZON))).toEqual([]);
-  });
-});
-
-describe("evaluate* fail-loud options / cadence", () => {
-  const base = item({
-    id: "n-bad",
-    cadence: cadence({ kind: "every_n_days", days: 3 }),
-    lastDone: Temporal.Instant.from("2026-09-24T10:00:00.000Z"),
-  });
-
-  it.each([
-    { name: "zero", days: 0 },
-    { name: "negative", days: -1 },
-    { name: "float", days: 1.5 },
-    { name: "NaN", days: Number.NaN },
-  ])("every_n_days days $name → InvalidCadenceError (engine last-line)", ({ days }) => {
-    const bad = item({
-      ...base,
-      // Bypass domain parse — engine last-line assert must still reject.
-      cadence: { kind: "every_n_days", days } as Cadence,
-    });
-    expect(() => evaluateItem(bad, NOW, options(HORIZON))).toThrow(
-      InvalidCadenceError,
-    );
-    expect(() => evaluateCatalog([bad], NOW, options(HORIZON))).toThrow(
-      InvalidCadenceError,
-    );
-  });
-
-  it.each([
-    { name: "zero", horizonDays: 0 },
-    { name: "negative", horizonDays: -3 },
-    { name: "float", horizonDays: 1.5 },
-    { name: "NaN", horizonDays: Number.NaN },
-  ])("horizonDays $name → RangeError (engine last-line)", ({ horizonDays }) => {
-    const badOpts = { horizonDays } as EvaluateOptions;
-    expect(() => evaluateItem(base, NOW, badOpts)).toThrow(RangeError);
-    expect(() => evaluateCatalog([base], NOW, badOpts)).toThrow(RangeError);
-    expect(() => evaluateCatalog([], NOW, badOpts)).toThrow(RangeError);
-  });
-
-  it("paused + every_n_days days:0 → InvalidCadenceError (before paused return)", () => {
-    const bad = item({
-      id: "paused-n0",
-      cadence: { kind: "every_n_days", days: 0 } as Cadence,
-      status: "paused",
-    });
-    expect(() => evaluateItem(bad, NOW, options(HORIZON))).toThrow(
-      InvalidCadenceError,
-    );
   });
 });
