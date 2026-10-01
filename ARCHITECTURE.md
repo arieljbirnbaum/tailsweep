@@ -89,12 +89,12 @@ Cadence increments (from lastDone’s local civil date in `item.zone`):
 
 - daily → +1 day; weekly → +7 days; monthly → +1 calendar month; quarterly → +3 months; yearly → +1 year; `every_n_days` → +N days (`N` positive integer).
 - **Month-end / leap overflow (Temporal constrain intent):** adding months/years keeps the civil day when it exists; otherwise clamps to the last valid day of the target month. Examples: Jan 31 + monthly → Feb 28 (non-leap) / Feb 29 (leap); Feb 29 + yearly → Feb 28 in a non-leap year. Documented intent only — do **not** prescribe ZDT vs PlainDate call pipelines; contract equality remains `Temporal.Instant.equals` on SOD Instants (locked in `evaluate.test.ts`).
-- **`every_n_days` validation:** domain `parseCadence` / adapters reject `days ≤ 0` / non-integer at the boundary. `evaluate*` also throws `InvalidCadenceError` if such a cadence reaches the engine (fail loud; no coerce).
+- **`every_n_days` validation:** domain `parseCadence` / adapters reject `days ≤ 0` / non-integer at the boundary. `evaluate*` also throws `InvalidCadenceError` if such a cadence reaches the engine — checked before the paused early-return (fail loud; no coerce).
 
 ## Debuggability
 
 - **Injectable clock** — no `Temporal.Now` / system time in `src/engine` (lint-enforced); production clock at `src/time/system-clock.ts`.
-- **Typed errors** — `InvalidCadenceError` (code on `.code`; domain + engine). `RangeError` for invalid `horizonDays`. Temporal construction errors surface as-is. `NotImplementedError` is reserved for future stubs (evaluate* does not throw it).
+- **Typed errors** — `InvalidCadenceError` (code on `.code`; domain + engine). `RangeError` for invalid `horizonDays`. Temporal construction errors surface as-is. `NotImplementedError` is exported but unused by evaluate*.
 - **Table-driven tests** — one row per behavior; failures name the case. SOD proof is `wantNextDue.equals` only.
 - **No silent Instant / option coercion** — bad Instant strings throw from Temporal; bad `horizonDays` / `every_n_days.days` throw in evaluate*; adapters validate CatalogItem at the edge.
 

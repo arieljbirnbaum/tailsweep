@@ -34,6 +34,13 @@ function assertEveryNDays(days: number): void {
   }
 }
 
+/** Fail-loud cadence checks before any early return (including paused). */
+function assertCadence(cadence: Cadence): void {
+  if (cadence.kind === "every_n_days") {
+    assertEveryNDays(cadence.days);
+  }
+}
+
 /**
  * Evaluate a single catalog item against `now`.
  *
@@ -55,7 +62,8 @@ function assertEveryNDays(days: number): void {
  *
  * Preconditions (v1): `item` is a valid CatalogItem (zone / lastDone / cadence
  * shape validated at adapters/domain). evaluate* still fail-loud on
- * every_n_days.days ≤ 0 / non-integer and horizonDays ≤ 0 / non-integer.
+ * every_n_days.days ≤ 0 / non-integer (before paused early-return) and
+ * horizonDays ≤ 0 / non-integer.
  *
  * @see ARCHITECTURE.md and evaluate.test.ts for the full table-driven contract.
  */
@@ -67,6 +75,7 @@ export function evaluateItem(
   assertHorizonDays(options.horizonDays);
 
   const { id: itemId, status, cadence, lastDone } = item;
+  assertCadence(cadence);
 
   if (status === "paused") {
     return { itemId, nextDue: null, state: "not_applicable" };
@@ -81,10 +90,7 @@ export function evaluateItem(
     .with({ kind: "monthly" }, () => ({ months: 1 }))
     .with({ kind: "quarterly" }, () => ({ months: 3 }))
     .with({ kind: "yearly" }, () => ({ years: 1 }))
-    .with({ kind: "every_n_days", days: P.select("days") }, ({ days }) => {
-      assertEveryNDays(days);
-      return { days };
-    })
+    .with({ kind: "every_n_days", days: P.select("days") }, ({ days }) => ({ days }))
     .with({ kind: "as_needed" }, () => null)
     .exhaustive();
 

@@ -2,7 +2,6 @@
  * Behavioral tests for the due-engine.
  *
  * Prefer Instant.equals for nextDue — state-only rows miss SOD vs wall-clock bugs.
- * SOD proof is wantNextDue.equals only (no weak nextDue !== now asserts).
  *
  * Run: pnpm test
  */
@@ -305,6 +304,17 @@ const cases: Case[] = [
     wantNextDue: sod("2026-02-28"),
   },
   {
+    name: "month-end overflow: Jan 31 + monthly → Feb 29 SOD in leap year (constrain)",
+    item: item({
+      id: "monthly-jan31-leap",
+      cadence: { kind: "monthly" },
+      lastDone: Temporal.Instant.from("2024-01-31T12:00:00.000Z"),
+    }),
+    now: Temporal.Instant.from("2024-02-29T12:00:00.000Z"),
+    wantState: "due",
+    wantNextDue: sod("2024-02-29"),
+  },
+  {
     name: "leap overflow: Feb 29 + yearly → Feb 28 SOD in non-leap year (constrain)",
     item: item({
       id: "yearly-feb29",
@@ -471,5 +481,16 @@ describe("evaluate* fail-loud options / cadence", () => {
     expect(() => evaluateItem(base, NOW, { horizonDays })).toThrow(RangeError);
     expect(() => evaluateCatalog([base], NOW, { horizonDays })).toThrow(RangeError);
     expect(() => evaluateCatalog([], NOW, { horizonDays })).toThrow(RangeError);
+  });
+
+  it("paused + every_n_days days:0 → InvalidCadenceError (before paused return)", () => {
+    const bad = item({
+      id: "paused-n0",
+      cadence: { kind: "every_n_days", days: 0 } as Cadence,
+      status: "paused",
+    });
+    expect(() => evaluateItem(bad, NOW, { horizonDays: HORIZON })).toThrow(
+      InvalidCadenceError,
+    );
   });
 });

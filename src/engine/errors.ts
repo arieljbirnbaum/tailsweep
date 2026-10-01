@@ -8,9 +8,6 @@
 
 export { InvalidCadenceError } from "@/domain/errors";
 
-/**
- * Reserved for future stubs. evaluate* is implemented and does not throw this.
- */
 export class NotImplementedError extends Error {
   readonly code = "NOT_IMPLEMENTED" as const;
 
