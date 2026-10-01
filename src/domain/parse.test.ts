@@ -8,15 +8,25 @@ import { describe, expect, it } from "vitest";
 import {
   InvalidCadenceError,
   Temporal,
+  cadence,
+  evaluateOptions,
   parseCadence,
   parseCadenceJson,
   parseCatalogItem,
+  parseEvaluateOptions,
   parseInstantIso,
   parseZone,
 } from "./index";
 
-describe("parseCadence / every_n_days", () => {
-  it("accepts positive integer days", () => {
+describe("cadence / parseCadence / every_n_days", () => {
+  it("cadence accepts positive integer days", () => {
+    expect(cadence({ kind: "every_n_days", days: 1 })).toEqual({
+      kind: "every_n_days",
+      days: 1,
+    });
+  });
+
+  it("parseCadence / parseCadenceJson accept positive integer days", () => {
     expect(parseCadence({ kind: "every_n_days", days: 1 })).toEqual({
       kind: "every_n_days",
       days: 1,
@@ -31,70 +41,173 @@ describe("parseCadence / every_n_days", () => {
     { name: "zero", raw: { kind: "every_n_days", days: 0 } },
     { name: "negative", raw: { kind: "every_n_days", days: -3 } },
     { name: "float", raw: { kind: "every_n_days", days: 1.5 } },
+    { name: "NaN", raw: { kind: "every_n_days", days: Number.NaN } },
     { name: "missing days", raw: { kind: "every_n_days" } },
   ])("rejects $name as InvalidCadenceError", ({ raw }) => {
-    expect(() => parseCadence(raw)).toThrow(InvalidCadenceError);
-  });
-});
-
-describe("InvalidCadenceError golden messages", () => {
-  const EVERY_N = /every_n_days requires positive integer days and no extra keys/;
-
-  it.each([
-    { name: "zero days", raw: { kind: "every_n_days", days: 0 } },
-    { name: "negative days", raw: { kind: "every_n_days", days: -3 } },
-    { name: "float days", raw: { kind: "every_n_days", days: 1.5 } },
-    { name: "missing days", raw: { kind: "every_n_days" } },
-    { name: "extra key", raw: { kind: "every_n_days", days: 2, x: 1 } },
-  ])("parseCadence $name", ({ raw }) => {
-    expect(() => parseCadence(raw)).toThrowError(EVERY_N);
+    let caught: unknown;
     try {
       parseCadence(raw);
     } catch (err) {
-      expect(err).toBeInstanceOf(InvalidCadenceError);
-      expect((err as Error).message).toMatch(/\([^)]+:/);
+      caught = err;
     }
+    expect(caught).toBeInstanceOf(InvalidCadenceError);
   });
 
-  it("unknown kind", () => {
-    expect(() => parseCadence({ kind: "hourly" })).toThrowError(
-      /unknown cadence kind: hourly/,
-    );
+  it("cadence rejects non-positive days", () => {
+    let caught: unknown;
+    try {
+      cadence({ kind: "every_n_days", days: 0 });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(InvalidCadenceError);
+    if (!(caught instanceof InvalidCadenceError)) {
+      throw caught instanceof Error ? caught : new Error(String(caught));
+    }
+    expect(caught.message).toMatch(/Too small: expected number to be >0/);
+    expect(caught.message).toMatch(/at days/);
+  });
+});
+
+describe("InvalidCadenceError — Zod-sourced messages", () => {
+  it.each([
+    { name: "zero days", raw: { kind: "every_n_days", days: 0 } },
+    { name: "negative days", raw: { kind: "every_n_days", days: -3 } },
+  ])("parseCadence $name includes Zod too_small at days", ({ raw }) => {
+    let caught: unknown;
+    try {
+      parseCadence(raw);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(InvalidCadenceError);
+    if (!(caught instanceof InvalidCadenceError)) {
+      throw caught instanceof Error ? caught : new Error(String(caught));
+    }
+    expect(caught.message).toMatch(/Too small: expected number to be >0/);
+    expect(caught.message).toMatch(/at days/);
   });
 
-  it("named cadence with extra key", () => {
-    expect(() => parseCadence({ kind: "daily", days: 1 })).toThrowError(
-      /named cadence daily must have only \{ kind \}/,
-    );
+  it.each([
+    { name: "float days", raw: { kind: "every_n_days", days: 1.5 } },
+    { name: "NaN days", raw: { kind: "every_n_days", days: Number.NaN } },
+    { name: "missing days", raw: { kind: "every_n_days" } },
+    { name: "extra key", raw: { kind: "every_n_days", days: 2, x: 1 } },
+  ])("parseCadence $name throws InvalidCadenceError with Zod copy", ({ raw }) => {
+    let caught: unknown;
+    try {
+      parseCadence(raw);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(InvalidCadenceError);
+    if (!(caught instanceof InvalidCadenceError)) {
+      throw caught instanceof Error ? caught : new Error(String(caught));
+    }
+    // Zod prettify: ✖ … lines — not hand-rolled kind-branch copy.
+    expect(caught.message).toMatch(/✖/);
   });
 
-  it("non-object", () => {
-    expect(() => parseCadence("daily")).toThrowError(
-      /cadence must be a JSON object, got string/,
-    );
+  it("unknown kind uses Zod invalid_union / invalid option copy", () => {
+    let caught: unknown;
+    try {
+      parseCadence({ kind: "hourly" });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(InvalidCadenceError);
+    if (!(caught instanceof InvalidCadenceError)) {
+      throw caught instanceof Error ? caught : new Error(String(caught));
+    }
+    expect(caught.message).toMatch(/Invalid/);
   });
 
-  it("missing kind", () => {
-    expect(() => parseCadence({})).toThrowError(/cadence\.kind must be a string/);
+  it("named cadence with extra key uses Zod unrecognized_keys", () => {
+    let caught: unknown;
+    try {
+      parseCadence({ kind: "daily", days: 1 });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(InvalidCadenceError);
+    if (!(caught instanceof InvalidCadenceError)) {
+      throw caught instanceof Error ? caught : new Error(String(caught));
+    }
+    expect(caught.message).toMatch(/Unrecognized key: "days"/);
   });
 
-  it("parseCadenceJson invalid JSON includes SyntaxError message", () => {
-    expect(() => parseCadenceJson("daily")).toThrowError(
+  it("non-object uses Zod type error", () => {
+    // Union prettify collapses to "Invalid input" (issues still have type detail).
+    let caught: unknown;
+    try {
+      parseCadence("daily");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(InvalidCadenceError);
+    if (!(caught instanceof InvalidCadenceError)) {
+      throw caught instanceof Error ? caught : new Error(String(caught));
+    }
+    expect(caught.message).toMatch(/Invalid input/);
+  });
+
+  it("missing kind uses Zod copy", () => {
+    let caught: unknown;
+    try {
+      parseCadence({});
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(InvalidCadenceError);
+    if (!(caught instanceof InvalidCadenceError)) {
+      throw caught instanceof Error ? caught : new Error(String(caught));
+    }
+    expect(caught.message).toMatch(/Invalid/);
+  });
+
+  it("parseCadenceJson invalid JSON wraps SyntaxError message", () => {
+    let caught: unknown;
+    try {
+      parseCadenceJson("daily");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(InvalidCadenceError);
+    if (!(caught instanceof InvalidCadenceError)) {
+      throw caught instanceof Error ? caught : new Error(String(caught));
+    }
+    expect(caught.message).toMatch(
       /cadence_json is not valid JSON: Unexpected token/,
     );
-    expect(() => parseCadenceJson("daily")).not.toThrowError(/: daily$/);
   });
 
-  it("parseCadenceJson non-object uses cadence_json prefix", () => {
-    expect(() => parseCadenceJson("null")).toThrowError(
-      /cadence_json must be a JSON object, got object/,
-    );
+  it("parseCadenceJson non-object uses Zod formatting (via parseCadence)", () => {
+    let caught: unknown;
+    try {
+      parseCadenceJson("null");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(InvalidCadenceError);
+    if (!(caught instanceof InvalidCadenceError)) {
+      throw caught instanceof Error ? caught : new Error(String(caught));
+    }
+    expect(caught.message).toMatch(/Invalid input/);
   });
 
-  it("parseCadenceJson zero days keeps hand-rolled every_n message plus Zod detail", () => {
-    expect(() => parseCadenceJson('{"kind":"every_n_days","days":0}')).toThrowError(
-      EVERY_N,
-    );
+  it("parseCadenceJson zero days uses Zod too_small", () => {
+    let caught: unknown;
+    try {
+      parseCadenceJson('{"kind":"every_n_days","days":0}');
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(InvalidCadenceError);
+    if (!(caught instanceof InvalidCadenceError)) {
+      throw caught instanceof Error ? caught : new Error(String(caught));
+    }
+    expect(caught.message).toMatch(/Too small: expected number to be >0/);
+    expect(caught.message).toMatch(/at days/);
   });
 });
 
@@ -166,7 +279,7 @@ describe("parseCatalogItem", () => {
     ).toThrow(/unknown IANA time zone/);
   });
 
-  it("days:0 throws InvalidCadenceError (not raw ZodError)", () => {
+  it("days:0 throws InvalidCadenceError wrapping Zod message", () => {
     let caught: unknown;
     try {
       parseCatalogItem({
@@ -181,9 +294,114 @@ describe("parseCatalogItem", () => {
       caught = err;
     }
     expect(caught).toBeInstanceOf(InvalidCadenceError);
-    expect((caught as Error).message).toMatch(
-      /every_n_days requires positive integer days and no extra keys/,
-    );
-    expect((caught as Error).message).toMatch(/days:/);
+    if (!(caught instanceof InvalidCadenceError)) {
+      throw caught instanceof Error ? caught : new Error(String(caught));
+    }
+    expect(caught.message).toMatch(/Too small: expected number to be >0/);
+    expect(caught.message).toMatch(/at days/);
+  });
+});
+
+describe("branded Cadence — invalid cannot be built via public API", () => {
+  it("cadence / parseCadence return Cadence (happy path)", () => {
+    expect(cadence({ kind: "daily" }).kind).toBe("daily");
+    expect(parseCadence({ kind: "daily" }).kind).toBe("daily");
+  });
+
+  it.each([
+    { name: "zero days", raw: { kind: "every_n_days", days: 0 } },
+    { name: "negative days", raw: { kind: "every_n_days", days: -1 } },
+    { name: "float days", raw: { kind: "every_n_days", days: 2.5 } },
+    { name: "NaN days", raw: { kind: "every_n_days", days: Number.NaN } },
+    { name: "unknown kind", raw: { kind: "hourly" } },
+  ])("rejects $name — no Cadence value escapes", ({ raw }) => {
+    let caught: unknown;
+    try {
+      parseCadence(raw);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(InvalidCadenceError);
+  });
+});
+
+describe("evaluateOptions / parseEvaluateOptions — branded", () => {
+  it("evaluateOptions accepts positive integer horizonDays", () => {
+    expect(evaluateOptions({ horizonDays: 1 }).horizonDays).toBe(1);
+    expect(evaluateOptions({ horizonDays: 14 }).horizonDays).toBe(14);
+  });
+
+  it("parseEvaluateOptions accepts positive integer horizonDays", () => {
+    expect(parseEvaluateOptions({ horizonDays: 1 }).horizonDays).toBe(1);
+    expect(parseEvaluateOptions({ horizonDays: 14 }).horizonDays).toBe(14);
+  });
+
+  it.each([
+    {
+      name: "zero",
+      raw: { horizonDays: 0 },
+      message: /Too small: expected number to be >0/,
+      path: /at horizonDays/,
+    },
+    {
+      name: "negative",
+      raw: { horizonDays: -3 },
+      message: /Too small: expected number to be >0/,
+      path: /at horizonDays/,
+    },
+    {
+      name: "float",
+      raw: { horizonDays: 1.5 },
+      message: /expected int/,
+      path: /at horizonDays/,
+    },
+    {
+      name: "NaN",
+      raw: { horizonDays: Number.NaN },
+      message: /NaN|number/,
+      path: /at horizonDays/,
+    },
+    {
+      name: "missing",
+      raw: {},
+      message: /horizonDays|undefined/,
+      path: /at horizonDays/,
+    },
+    {
+      name: "extra key",
+      raw: { horizonDays: 7, x: 1 },
+      message: /Unrecognized key/,
+      path: undefined,
+    },
+  ])("rejects $name as RangeError with Zod message", ({ raw, message, path }) => {
+    let caught: unknown;
+    try {
+      parseEvaluateOptions(raw);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(RangeError);
+    if (!(caught instanceof RangeError)) {
+      throw caught instanceof Error ? caught : new Error(String(caught));
+    }
+    expect(caught.message).toMatch(message);
+    if (path !== undefined) {
+      expect(caught.message).toMatch(path);
+    }
+  });
+
+  it("evaluateOptions rejects zero with Zod-sourced RangeError", () => {
+    let caught: unknown;
+    try {
+      evaluateOptions({ horizonDays: 0 });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(RangeError);
+    if (!(caught instanceof RangeError)) {
+      throw caught instanceof Error ? caught : new Error(String(caught));
+    }
+    expect(caught.message).toMatch(/Too small: expected number to be >0/);
+    expect(caught.message).toMatch(/at horizonDays/);
   });
 });

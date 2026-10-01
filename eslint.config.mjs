@@ -15,6 +15,26 @@ const engineDomainValueBanMessage =
 const engineDbBanMessage =
   "Do not import persistence (drizzle / libsql / @/db) under src/engine. Persistence lives outside the engine.";
 
+/**
+ * Ariel soundness: ban type assertions via stock
+ * `@typescript-eslint/consistent-type-assertions` with `assertionStyle: "never"`.
+ * Docs: `as const` / `<const>` are always allowed under this rule.
+ * Prefer valid-by-construction parsers, `in`/instanceof narrowing, or rewrite types.
+ * Other escapes need a scoped carve-out + ARCHITECTURE justification.
+ */
+
+/** Ban Date construction / static calls (repo-wide). */
+const dateRestrictedSyntax = [
+  {
+    selector: "NewExpression[callee.name='Date']",
+    message: dateBanMessage,
+  },
+  {
+    selector: "CallExpression[callee.object.name='Date']",
+    message: dateBanMessage,
+  },
+];
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -55,32 +75,22 @@ const eslintConfig = defineConfig([
           },
         },
       ],
-      "no-restricted-syntax": [
+      // Blanket ban on type assertions; `as const` / `<const>` always allowed (stock rule).
+      // Plugin is provided by eslint-config-next (typescript-eslint package).
+      "@typescript-eslint/consistent-type-assertions": [
         "error",
-        {
-          selector: "NewExpression[callee.name='Date']",
-          message: dateBanMessage,
-        },
-        {
-          selector: "CallExpression[callee.object.name='Date']",
-          message: dateBanMessage,
-        },
+        { assertionStyle: "never" },
       ],
+      "no-restricted-syntax": ["error", ...dateRestrictedSyntax],
     },
   },
   {
     files: ["src/engine/**/*.{ts,tsx}"],
     rules: {
+      // Flat config replaces the whole rule — keep Date bans + engine Temporal.Now ban.
       "no-restricted-syntax": [
         "error",
-        {
-          selector: "NewExpression[callee.name='Date']",
-          message: dateBanMessage,
-        },
-        {
-          selector: "CallExpression[callee.object.name='Date']",
-          message: dateBanMessage,
-        },
+        ...dateRestrictedSyntax,
         {
           selector: "MemberExpression[object.name='Temporal'][property.name='Now']",
           message:

@@ -1,20 +1,20 @@
 /**
  * Engine types — domain typedefs re-exported as the single source of truth,
- * plus evaluate-only types (DueState, Clock, options).
+ * plus evaluate-only types (DueState, Clock, EvaluatedItem).
  *
- * Domain owns Cadence / CatalogItem constraints (Zod). Engine logic stays pure
- * and type-only-imports from domain — no Zod runtime parse on evaluate*.
+ * Domain owns branded Cadence / EvaluateOptions / CatalogItem constraints (Zod).
+ * Engine logic stays pure and type-only-imports from domain — no Zod runtime
+ * parse on evaluate*. Adapters construct via domain `cadence` / `evaluateOptions` (typed) or parse* (deserialization).
  */
 
 import type { Temporal } from "./temporal";
 
 export type {
   Cadence,
-  NamedCadence,
   NamedCadenceKind,
-  EveryNDaysCadence,
   CatalogItem,
   CatalogItemStatus,
+  EvaluateOptions,
 } from "@/domain";
 
 /**
@@ -42,12 +42,4 @@ export type EvaluatedItem = {
  */
 export type Clock = {
   now(): Temporal.Instant;
-};
-
-export type EvaluateOptions = {
-  /**
-   * How many calendar days ahead (from "today" in the item's zone) to treat
-   * as "upcoming". Required — UX/adapters supply this; engine has no default.
-   */
-  readonly horizonDays: number;
 };

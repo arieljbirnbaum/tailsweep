@@ -25,7 +25,7 @@ Dependencies point **inward only**:
 - `src/engine` may import **types** from `@/domain` (type-only) and shared errors from `@/domain/errors` (thin, no Zod) — must **never** value-import the fat `@/domain` barrel, nor import Next, React, Drizzle, Zod for runtime parse on evaluate*, `fs`, `fetch`, Node I/O, or anything under `src/app` / `src/db`
 - `src/domain` must **never** import engine evaluate logic, Drizzle, Next, or React
 
-**Domain owns** Zod schemas + constrained types (`Cadence`, `CatalogItem`, Instant ISO helpers, zone/status). **Engine** stays pure functional due math and may depend on domain for typedefs only — do **not** run Zod on every `evaluate*` call. **Adapters/persistence** call domain `parse*` helpers at the boundary (fail-loud; no permissive coercions).
+**Domain owns** Zod schemas + **branded / valid-by-construction** types (`Cadence`, `EvaluateOptions`, `CatalogItem`, Instant ISO helpers, zone/status). **Engine** stays pure functional due math and may depend on domain for typedefs only — do **not** run Zod on every `evaluate*` call. **In-app construction** uses typed domain factories (`cadence`, `evaluateOptions`, …). **`parse*`** is for unknown / JSON deserialization boundaries only. Adapters/persistence call `cadence` / `evaluateOptions` / parse* at the edge (fail-loud; no permissive coercions). Invariants live at construction; the engine trusts opaque branded inputs.
 
 If you need “today” inside the engine, take a `Temporal.Instant` argument or an injectable `Clock`. Do **not** call `Temporal.Now` anywhere under `src/engine` (ESLint error). Production clock lives at `src/time/system-clock.ts` (or inline `{ now: () => Temporal.Now.instant() }` at the adapter edge).
 
@@ -35,10 +35,10 @@ If you need “today” inside the engine, take a `Temporal.Instant` argument or
 
 | Concept           | Notes                                                                                                                                           |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Cadence`         | `daily` / `weekly` / `monthly` / `quarterly` / `yearly` / `as_needed` / `{ kind: "every_n_days", days: N }`                                     |
+| `Cadence`         | Branded opaque: named kinds + `every_n_days` (positive int). Prefer `cadence` (typed); `parseCadence` / `parseCadenceJson` after deserialization. |
 | `CatalogItem`     | `id`, `name`, `cadence`, `lastDone: Temporal.Instant \| null`, required `zone` (IANA id), `status: active\|paused`                              |
 | `DueState`        | `due` \| `overdue` \| `upcoming` \| `not_applicable`                                                                                            |
-| `EvaluateOptions` | required `horizonDays: number` (no engine default; no `timeZone`)                                                                               |
+| `EvaluateOptions` | Branded opaque: required `horizonDays` ≥ 1. Prefer `evaluateOptions` (typed); `parseEvaluateOptions` for unknown. No engine default; no `timeZone`. |
 | `Clock`           | `{ now(): Temporal.Instant }` — inject at edges; `fixedClock` in tests; production `systemClock` at `src/time/system-clock.ts` (outside engine) |
 
 ### Functions
@@ -54,9 +54,11 @@ Behavioral contract is this doc plus the table-driven cases in `evaluate.test.ts
 - **`Temporal.Now` is banned under `src/engine/**`** (ESLint). Inject `Clock` or pass `Temporal.Instant` from the edge (`src/time/system-clock.ts`).
 - **Calendar intent** (not a required call pipeline): cadence advances on the item’s **local civil calendar** in required `item.zone`. `nextDue` is the **Instant at start of that due local day** in `item.zone`. Contract equality is `Temporal.Instant.equals` on those SOD Instants. Implementations may use any Temporal path that realizes this intent (e.g. ZDT or PlainDate); do **not** treat Instant→ZDT→add→startOfDay (or PlainDate add) as the prescribed pipeline.
 - **Midnight / DST**: when a local midnight is ambiguous or skipped, use Temporal’s default disambiguation **`compatible`**. Lock spring/fall SOD Instants in `evaluate.test.ts`; do not invent silent half-hour offsets. No `options.timeZone`, no `"UTC"` default in evaluate\*.
-- UX/adapters supply `zone` on each catalog item and `horizonDays` on every evaluate\* call. The engine requires both; it does not pick a dogfood default.
-- `horizonDays` (required): how far ahead “upcoming” extends; beyond horizon → `not_applicable`.
+- UX/adapters supply `zone` on each catalog item and branded `EvaluateOptions` (via `evaluateOptions` / `parseEvaluateOptions`) on every evaluate* call. The engine requires both; it does not pick a dogfood default.
+- `horizonDays` (required positive integer ≥ 1): how far ahead “upcoming” extends; beyond horizon → `not_applicable`. Invalid values fail at **construction** (`evaluateOptions` / `parseEvaluateOptions` → `RangeError` wrapping Zod’s formatted message). The engine does **not** re-validate. ESLint bans type assertions via `@typescript-eslint/consistent-type-assertions` (see soundness principle below), so construction is the practical door for branded values.
 - Invalid Instant strings: let Temporal construction throw (`TypeError` / `RangeError`). **Zone** is validated at the domain boundary (`zoneSchema` / `parseZone`) against runtime tzdata via `Intl.supportedValuesOf("timeZone")` (Temporal fallback for ids Intl omits, e.g. `UTC`); unknown / padded zones fail loud at parse — not deferred to evaluate. Adapters own validation — the engine does **not** expose `assertDate` / `InvalidDateError`.
+- **Soundness principle (type assertions):** All unsound escape hatches are blanket-blacklisted; every exception is justified and documented. ESLint enforces stock `@typescript-eslint/consistent-type-assertions` with `{ assertionStyle: "never" }` (const assertions always allowed per the rule docs). Trust that rule — do **not** reinvent assertion regression scripts. `as Record<…>`, `as Error`, `as unknown`, `as Cadence`, aliases, and chains (`x as unknown as Cadence`, etc.) are forbidden until a **documented scoped carve-out** is added (folder-scoped eslint override + ARCHITECTURE justification). Domain parsers already use `in` narrowing — no cast carve-outs needed yet. Prefer `in` / `instanceof` narrowing or rewrite types over assertions.
+- **Valid-by-construction stance:** `Cadence` and `EvaluateOptions` are Zod-branded opaque types. Prefer typed factories (`cadence`, `evaluateOptions`) for in-app construction; use `parseCadence` / `parseCadenceJson` / `parseEvaluateOptions` (and CatalogItem parsers) for unknown/JSON boundaries. Shape failures wrap Zod’s formatted error (`z.prettifyError`); JSON failures wrap `SyntaxError` — do not re-inspect raw to invent parallel messages. `evaluate*` trusts opaque inputs completely and does **not** re-validate. Construction + the assertion ban close forge-via-literal / alias / `as unknown as Brand` paths. No temporary last-line asserts. No permissive coercions; defaults only in UX/adapters.
 
 ### Temporal polyfill & runtime
 
@@ -84,16 +86,18 @@ Behavioral contract is this doc plus the table-driven cases in `evaluate.test.ts
    - today < next ≤ today+horizon → `upcoming`
    - next > today+horizon → `not_applicable`
 
-Cadence increments (from lastDone’s local date):
+Cadence increments (from lastDone’s local civil date in `item.zone`):
 
-- daily → +1 day; weekly → +7 days; monthly → +1 calendar month; quarterly → +3 months; yearly → +1 year; `every_n_days` → +N days.
+- daily → +1 day; weekly → +7 days; monthly → +1 calendar month; quarterly → +3 months; yearly → +1 year; `every_n_days` → +N days (`N` positive integer).
+- **Month-end / leap overflow (Temporal constrain intent):** adding months/years keeps the civil day when it exists; otherwise clamps to the last valid day of the target month. Examples: Jan 31 + monthly → Feb 28 (non-leap) / Feb 29 (leap); Feb 29 + yearly → Feb 28 in a non-leap year. Documented intent only — do **not** prescribe ZDT vs PlainDate call pipelines; contract equality remains `Temporal.Instant.equals` on SOD Instants (locked in `evaluate.test.ts`).
+- **`every_n_days` validation:** domain `cadence` / `parseCadence` / adapters reject `days ≤ 0` / non-integer at construction (`InvalidCadenceError` wrapping Zod). Branded `Cadence` is opaque to the engine; `evaluate*` does not re-check `days`. ESLint `@typescript-eslint/consistent-type-assertions` (`assertionStyle: "never"`) bans type assertions (no `as Cadence`, no chains; `as const` allowed).
 
 ## Debuggability
 
 - **Injectable clock** — no `Temporal.Now` / system time in `src/engine` (lint-enforced); production clock at `src/time/system-clock.ts`.
-- **Typed errors** — `NotImplementedError`, `InvalidCadenceError` (codes on `.code`). Temporal construction errors surface as-is.
-- **Table-driven tests** — one row per behavior; failures name the case.
-- **No silent Instant coercion** — bad strings throw from Temporal; adapters validate at the edge.
+- **Typed errors** — `InvalidCadenceError` (code on `.code`; domain + engine re-export) wraps Zod-formatted shape errors or JSON `SyntaxError`. `RangeError` for invalid `horizonDays` (domain `evaluateOptions` / `parseEvaluateOptions`) wraps Zod formatting. Temporal construction errors surface as-is. `NotImplementedError` is exported but unused by evaluate*.
+- **Table-driven tests** — one row per behavior; failures name the case. SOD proof is `wantNextDue.equals` only. Construction tests lock “invalid Cadence / EvaluateOptions cannot be built via public `cadence` / `evaluateOptions` / parse* API.” Prefer domain factories in engine tests.
+- **No silent Instant / option coercion** — bad Instant strings throw from Temporal; bad `horizonDays` / `every_n_days.days` throw at domain construction; adapters validate CatalogItem at the edge.
 
 ## DB layer (`src/db`)
 
@@ -121,9 +125,9 @@ Persistence lives **outside** `src/engine`. The engine stays pure (no Drizzle / 
 
 ### Domain (`src/domain`)
 
-- Zod schemas are the source of truth for constrained types (`Cadence`, zone, status, Instant ISO).
-- `parseCadence` / `parseCadenceJson`, `parseZone`, `parseInstantIso`, `parseCatalogItemFromRow`, etc. — fail-loud at boundaries.
-- Engine re-exports domain typedefs; evaluate* does not Zod-parse on the happy path.
+- Zod schemas are the source of truth for constrained / **branded** types (`Cadence`, `EvaluateOptions`, zone, status, Instant ISO).
+- Factories for in-app construction: `cadence`, `evaluateOptions` (typed inputs). Parsers for deserialization: `parseCadence` / `parseCadenceJson`, `parseEvaluateOptions`, `parseZone`, `parseInstantIso`, `parseCatalogItemFromRow`, etc. — fail-loud; return branded values (valid-by-construction).
+- Engine re-exports domain typedefs; evaluate* trusts opaque brands completely and does not Zod-parse or structurally re-validate. Lint uses stock `@typescript-eslint/consistent-type-assertions` with `assertionStyle: "never"` (const assertions always allowed; other assertions / chains need a documented scoped carve-out). No separate assertion-regression script.
 
 ### Mappers (`src/db/mappers.ts`)
 
@@ -156,10 +160,10 @@ Persistence lives **outside** `src/engine`. The engine stays pure (no Drizzle / 
 ## PR checklist
 
 - [ ] Engine still has **zero** Next/React/Drizzle/fs/fetch imports (`rg` the folder); no `zod` or fat `@/domain` value import under `src/engine` (domain owns runtime parse; errors via `@/domain/errors`).
-- [ ] Domain schemas remain the source of truth for Cadence / CatalogItem constraints; persistence uses domain parsers.
+- [ ] Domain schemas remain the source of truth for branded Cadence / EvaluateOptions / CatalogItem constraints; persistence uses domain parsers; engine does not Zod-reparse.
 - [ ] New due behavior: update ARCHITECTURE state/cadence rules and add/adjust a table row in `evaluate.test.ts`.
-- [ ] `pnpm typecheck` && `pnpm lint` && `pnpm test` (tests green once engine is implemented).
+- [ ] `pnpm typecheck` && `pnpm lint` && `pnpm test` (all green).
 - [ ] Times are `Temporal.Instant`; every `CatalogItem` has required `zone`; every evaluate\* call passes `horizonDays`.
-- [ ] Lint enforces **no `Date`** (repo-wide), **no `Temporal.Now`**, **no `zod`**, and **no value `@/domain` barrel** under `src/engine/**` (`@/domain/errors` + type-only `@/domain` allowed); production clock stays outside the engine (`src/time/system-clock.ts`).
+- [ ] Lint enforces **no `Date`** (repo-wide), stock **`@typescript-eslint/consistent-type-assertions`** with `assertionStyle: "never"` (const assertions always allowed; other assertions / chains need scoped carve-out + ARCHITECTURE note), **no `Temporal.Now`**, **no `zod`**, and **no value `@/domain` barrel** under `src/engine/**` (`@/domain/errors` + type-only `@/domain` allowed); production clock stays outside the engine (`src/time/system-clock.ts`).
 - [ ] No due math added to `src/db`.
 - [ ] README / ARCHITECTURE updated if the contract changed.

@@ -1,8 +1,10 @@
 /**
- * Duekeep domain layer — Zod schemas + constrained types + fail-loud parsers.
+ * Duekeep domain layer — Zod schemas + constrained / branded types +
+ * factories (typed) and fail-loud parsers (unknown / JSON boundaries).
  *
+ * Prefer `cadence` / `evaluateOptions` for in-app construction; parse* right after deserialization.
  * Engine depends on typedefs from here (type-only on the evaluate happy path).
- * Adapters / persistence call parse* helpers at the boundary.
+ * Adapters / persistence call `cadence` / `evaluateOptions` or parse* at the boundary (valid-by-construction).
  * Do not import Zod into evaluate* for runtime parse on every call.
  */
 
@@ -12,19 +14,27 @@ export { InvalidCadenceError } from "./errors";
 
 export {
   namedCadenceKindSchema,
-  namedCadenceSchema,
-  everyNDaysCadenceSchema,
   cadenceSchema,
+  cadence,
   parseCadence,
   parseCadenceJson,
   serializeCadence,
 } from "./cadence";
 export type {
   NamedCadenceKind,
-  NamedCadence,
-  EveryNDaysCadence,
   Cadence,
+  CadenceInput,
 } from "./cadence";
+
+export {
+  evaluateOptionsSchema,
+  evaluateOptions,
+  parseEvaluateOptions,
+} from "./evaluate-options";
+export type {
+  EvaluateOptions,
+  EvaluateOptionsInput,
+} from "./evaluate-options";
 
 export {
   instantIsoSchema,

@@ -1,7 +1,11 @@
 /**
- * Cadence schemas + parse helpers.
+ * Cadence schemas + factories / parse helpers.
  * Source of truth for Cadence shape and constraints (positive every_n_days.days).
- * Engine imports types only; adapters/persistence call parse* at the boundary.
+ * Branded opaque Cadence: invalid values cannot be built via cadence /
+ * parseCadence / parseCadenceJson.
+ * Prefer cadence for in-app construction (typed input).
+ * Use parseCadence / parseCadenceJson for unknown / JSON deserialization boundaries.
+ * Engine imports the branded type only; adapters/persistence call `cadence` or parse* at the edge.
  */
 
 import { z } from "zod";
@@ -21,136 +25,93 @@ export const namedCadenceKindSchema = z.enum(NAMED_KINDS);
 
 export type NamedCadenceKind = z.infer<typeof namedCadenceKindSchema>;
 
-/** Named cadence: { kind } only — extra keys rejected (.strict()). */
-export const namedCadenceSchema = z
+/** Internal named cadence: { kind } only. */
+const namedCadenceSchema = z
   .object({
     kind: namedCadenceKindSchema,
   })
   .strict();
 
-export type NamedCadence = z.infer<typeof namedCadenceSchema>;
-
 /**
  * Fixed interval of N calendar days (completion-anchored).
- * `days` must be a positive integer (≥ 1).
+ * `days` must be a positive integer (>= 1).
  */
-export const everyNDaysCadenceSchema = z
+const everyNDaysCadenceSchema = z
   .object({
     kind: z.literal("every_n_days"),
     days: z.number().int().positive(),
   })
   .strict();
 
-export type EveryNDaysCadence = z.infer<typeof everyNDaysCadenceSchema>;
-
 /**
- * How often an item should be completed again after lastDone.
- * - Named kinds use calendar periods in the item's time zone.
- * - `every_n_days` adds a fixed day count from lastDone's local date.
+ * Branded Cadence — how often an item should be completed again after lastDone.
+ * Named kinds use calendar periods in the item's zone; `every_n_days` adds a
+ * fixed day count. Valid-by-construction via cadence / parseCadence /
+ * parseCadenceJson. Plain literals are not assignable. ESLint blanket-bans type
+ * assertions except `as const` / `<const>` (other escapes need a scoped carve-out;
+ * never chained). The engine trusts branded inputs and does not re-validate.
  */
-export const cadenceSchema = z.union([namedCadenceSchema, everyNDaysCadenceSchema]);
+export const cadenceSchema = z
+  .union([namedCadenceSchema, everyNDaysCadenceSchema])
+  .brand<"Cadence">();
 
 export type Cadence = z.infer<typeof cadenceSchema>;
 
 /**
- * Stable human-readable InvalidCadenceError copy (not Zod's "Too small" /
- * "Invalid input"). Prefer prior hand-rolled messages from the mapper era.
+ * Typed input for in-app Cadence construction (not unknown).
+ * Named kinds or every_n_days with a days number — runtime Zod still enforces
+ * positive integer days / no extra keys.
  */
-function cadenceFailureMessage(raw: unknown, source: "cadence" | "cadence_json"): string {
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
-    return source === "cadence_json"
-      ? `cadence_json must be a JSON object, got ${typeof raw}`
-      : `cadence must be a JSON object, got ${typeof raw}`;
-  }
+export type CadenceInput =
+  | { kind: NamedCadenceKind }
+  | { kind: "every_n_days"; days: number };
 
-  const obj = raw as Record<string, unknown>;
-  const kind = obj.kind;
-
-  if (typeof kind !== "string") {
-    return source === "cadence_json"
-      ? "cadence_json.kind must be a string"
-      : "cadence.kind must be a string";
-  }
-
-  if (kind === "every_n_days") {
-    return "every_n_days requires positive integer days and no extra keys";
-  }
-
-  if ((NAMED_KINDS as readonly string[]).includes(kind)) {
-    return `named cadence ${kind} must have only { kind }`;
-  }
-
-  return `unknown cadence kind: ${kind}`;
-}
-
-/** First actionable Zod issue (walks invalid_union branches). */
-function firstZodIssue(issues: z.core.$ZodIssue[]): z.core.$ZodIssue | undefined {
-  for (const issue of issues) {
-    if (issue.code === "invalid_union") {
-      for (const branch of issue.errors) {
-        const leaf = firstZodIssue(branch);
-        if (leaf) return leaf;
-      }
-      continue;
-    }
-    return issue;
-  }
-  return undefined;
-}
-
-/** Compact Zod detail: `path: message` (or prettify first line). */
-function formatZodCompact(error: z.ZodError): string {
-  const leaf = firstZodIssue(error.issues);
-  if (leaf) {
-    const path = leaf.path.length > 0 ? leaf.path.join(".") : "root";
-    return `${path}: ${leaf.message}`;
-  }
-  const pretty = z.prettifyError(error);
-  const firstLine = pretty
-    .split("\n")
-    .map((line) => line.replace(/^[✖x]\s*/u, "").trim())
-    .find((line) => line.length > 0);
-  return firstLine ?? "invalid input";
-}
-
-function invalidCadenceFromZod(
-  raw: unknown,
-  source: "cadence" | "cadence_json",
-  error: z.ZodError,
-): InvalidCadenceError {
-  return new InvalidCadenceError(
-    `${cadenceFailureMessage(raw, source)} (${formatZodCompact(error)})`,
-  );
+function invalidCadenceFromZod(error: z.ZodError): InvalidCadenceError {
+  return new InvalidCadenceError(z.prettifyError(error));
 }
 
 /**
- * Strict Cadence parse from unknown. Throws InvalidCadenceError on bad shape.
- * No permissive coercions (string|object unions beyond the Cadence contract).
+ * Construct branded Cadence from a typed input.
+ * Preferred over parseCadence inside the app.
+ * Throws InvalidCadenceError wrapping Zod's formatted message on bad shape.
+ */
+export function cadence(input: CadenceInput): Cadence {
+  return parseCadence(input);
+}
+
+/**
+ * Strict Cadence parse from unknown (deserialization / boundary).
+ * Throws InvalidCadenceError wrapping Zod's formatted error (z.prettifyError).
+ * No permissive coercions.
  */
 export function parseCadence(raw: unknown): Cadence {
   const result = cadenceSchema.safeParse(raw);
   if (!result.success) {
-    throw invalidCadenceFromZod(raw, "cadence", result.error);
+    throw invalidCadenceFromZod(result.error);
   }
   return result.data;
 }
 
 /**
- * Strict Cadence JSON parse. Throws InvalidCadenceError on bad JSON or shape.
+ * Strict Cadence JSON parse.
+ * SyntaxError (JSON parse failure) → InvalidCadenceError.
+ * Bad shape (Zod) → InvalidCadenceError wrapping Zod formatting via parseCadence.
  */
 export function parseCadenceJson(json: string): Cadence {
   let raw: unknown;
   try {
-    raw = JSON.parse(json) as unknown;
+    // JSON.parse is `any`; assign into unknown without assertion.
+    raw = JSON.parse(json);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message =
+      err instanceof SyntaxError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : String(err);
     throw new InvalidCadenceError(`cadence_json is not valid JSON: ${message}`);
   }
-  const result = cadenceSchema.safeParse(raw);
-  if (!result.success) {
-    throw invalidCadenceFromZod(raw, "cadence_json", result.error);
-  }
-  return result.data;
+  return parseCadence(raw);
 }
 
 export function serializeCadence(cadence: Cadence): string {

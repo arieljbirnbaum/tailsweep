@@ -17,13 +17,22 @@ import {
  *    never done → due (nextDue = start of today in item.zone).
  * 3. Completion-anchored calendar intent: cadence advances on the item’s local
  *    civil calendar in `item.zone`; `nextDue` is the Instant at start of that
- *    due local day. Contract check: Instant.equals on SOD Instants. Midnight/DST
- *    uses Temporal’s default disambiguation `compatible` (lock in tests). Not a
+ *    due local day. Month-end / leap overflow uses Temporal constrain (e.g.
+ *    Jan 31 + monthly → Feb 28; Feb 29 + yearly → Feb 28 in a non-leap year).
+ *    Contract check: Instant.equals on SOD Instants. Midnight/DST uses
+ *    Temporal’s default disambiguation `compatible` (lock in tests). Not a
  *    prescribed Instant→ZDT→add→startOfDay / PlainDate call pipeline. Scheduled
  *    never done → overdue (nextDue = start of today in item.zone).
  * 4. Compare next-due SOD Instant to "today" SOD Instant in zone:
  *    before today → overdue; today → due; after today within horizon → upcoming;
  *    after horizon → not_applicable.
+ *
+ * Preconditions (v1): `item.cadence` and `options` are branded domain types
+ * constructed via `parseCadence` / `parseEvaluateOptions` (or CatalogItem
+ * parsers). evaluate* trusts those opaque inputs completely — no structural
+ * brand-integrity re-checks. Construction + ESLint
+ * (`@typescript-eslint/consistent-type-assertions` with `assertionStyle: "never"`;
+ * `as const` always allowed) close forge paths. See ARCHITECTURE.md.
  *
  * @see ARCHITECTURE.md and evaluate.test.ts for the full table-driven contract.
  */
