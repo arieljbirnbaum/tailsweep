@@ -1,7 +1,9 @@
 /**
  * Cadence schemas + parse helpers.
  * Source of truth for Cadence shape and constraints (positive every_n_days.days).
- * Engine imports types only; adapters/persistence call parse* at the boundary.
+ * Branded opaque Cadence: invalid values cannot be built via parseCadence /
+ * parseCadenceJson. Engine imports the branded type only; adapters/persistence
+ * call parse* at the boundary. Do not invent a second factory pattern.
  */
 
 import { z } from "zod";
@@ -48,7 +50,14 @@ export type EveryNDaysCadence = z.infer<typeof everyNDaysCadenceSchema>;
  * - Named kinds use calendar periods in the item's time zone.
  * - `every_n_days` adds a fixed day count from lastDone's local date.
  */
-export const cadenceSchema = z.union([namedCadenceSchema, everyNDaysCadenceSchema]);
+/**
+ * Branded Cadence — valid-by-construction through parseCadence / parseCadenceJson.
+ * Plain object literals are not assignable (TS `as Cadence` is the known hole;
+ * engine keeps a cheap last-line assert until parse is the exclusive door).
+ */
+export const cadenceSchema = z
+  .union([namedCadenceSchema, everyNDaysCadenceSchema])
+  .brand<"Cadence">();
 
 export type Cadence = z.infer<typeof cadenceSchema>;
 
@@ -125,6 +134,7 @@ function invalidCadenceFromZod(
 
 /**
  * Strict Cadence parse from unknown. Throws InvalidCadenceError on bad shape.
+ * Returns branded Cadence — the public construction path.
  * No permissive coercions (string|object unions beyond the Cadence contract).
  */
 export function parseCadence(raw: unknown): Cadence {

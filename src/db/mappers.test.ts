@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { parseCadence } from "@/domain";
 import { InvalidCadenceError } from "@/engine/errors";
 import { Temporal } from "@/engine/temporal";
 import type { Cadence, CatalogItem } from "@/engine/types";
@@ -34,7 +35,7 @@ const catalogCases: CatalogRoundTripCase[] = [
     item: {
       id: "chore-1",
       name: "Water plants",
-      cadence: { kind: "daily" },
+      cadence: parseCadence({ kind: "daily" }),
       lastDone: LAST_DONE,
       zone: "Europe/Berlin",
       status: "active",
@@ -45,7 +46,7 @@ const catalogCases: CatalogRoundTripCase[] = [
     item: {
       id: "chore-2",
       name: "Vacuum",
-      cadence: { kind: "weekly" },
+      cadence: parseCadence({ kind: "weekly" }),
       lastDone: null,
       zone: "America/Los_Angeles",
       status: "paused",
@@ -56,7 +57,7 @@ const catalogCases: CatalogRoundTripCase[] = [
     item: {
       id: "chore-3",
       name: "Change filter",
-      cadence: { kind: "every_n_days", days: 3 },
+      cadence: parseCadence({ kind: "every_n_days", days: 3 }),
       lastDone: LAST_DONE,
       zone: "Europe/Berlin",
       status: "active",
@@ -67,7 +68,7 @@ const catalogCases: CatalogRoundTripCase[] = [
     item: {
       id: "chore-4",
       name: "Clean oven",
-      cadence: { kind: "as_needed" },
+      cadence: parseCadence({ kind: "as_needed" }),
       lastDone: null,
       zone: "Europe/Berlin",
       status: "active",
@@ -78,7 +79,7 @@ const catalogCases: CatalogRoundTripCase[] = [
     item: {
       id: "chore-5",
       name: "Smoke alarm batteries",
-      cadence: { kind: "yearly" },
+      cadence: parseCadence({ kind: "yearly" }),
       lastDone: LAST_DONE,
       zone: "Europe/Berlin",
       status: "active",
@@ -149,12 +150,12 @@ describe("parseCadenceJson (strict)", () => {
     {
       name: "daily",
       json: '{"kind":"daily"}',
-      want: { kind: "daily" },
+      want: parseCadence({ kind: "daily" }),
     },
     {
       name: "every_n_days",
       json: '{"kind":"every_n_days","days":7}',
-      want: { kind: "every_n_days", days: 7 },
+      want: parseCadence({ kind: "every_n_days", days: 7 }),
     },
   ];
 
@@ -192,7 +193,7 @@ describe("strict zone / status (no silent defaults)", () => {
       {
         id: "x",
         name: "x",
-        cadence: { kind: "daily" },
+        cadence: parseCadence({ kind: "daily" }),
         lastDone: null,
         zone: "Europe/Berlin",
         status: "active",
@@ -207,7 +208,7 @@ describe("strict zone / status (no silent defaults)", () => {
       {
         id: "x",
         name: "x",
-        cadence: { kind: "daily" },
+        cadence: parseCadence({ kind: "daily" }),
         lastDone: null,
         zone: "Europe/Berlin",
         status: "active",
@@ -224,7 +225,7 @@ describe("strict zone / status (no silent defaults)", () => {
       {
         id: "x",
         name: "x",
-        cadence: { kind: "daily" },
+        cadence: parseCadence({ kind: "daily" }),
         lastDone: LAST_DONE,
         zone: "Europe/Berlin",
         status: "active",

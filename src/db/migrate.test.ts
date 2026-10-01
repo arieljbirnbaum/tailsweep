@@ -10,6 +10,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { parseCadence } from "@/domain";
 import { Temporal } from "@/engine/temporal";
 
 import { createDb, type Db } from "./client";
@@ -137,7 +138,7 @@ describe("db migrate + insert/select", () => {
     const item = {
       id: "item-1",
       name: "Water plants",
-      cadence: { kind: "daily" as const },
+      cadence: parseCadence({ kind: "daily" }),
       lastDone: LAST_DONE,
       zone: "Europe/Berlin",
       status: "active" as const,

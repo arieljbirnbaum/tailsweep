@@ -11,6 +11,7 @@ import {
   parseCadence,
   parseCadenceJson,
   parseCatalogItem,
+  parseEvaluateOptions,
   parseInstantIso,
   parseZone,
 } from "./index";
@@ -185,5 +186,40 @@ describe("parseCatalogItem", () => {
       /every_n_days requires positive integer days and no extra keys/,
     );
     expect((caught as Error).message).toMatch(/days:/);
+  });
+});
+
+describe("branded Cadence — invalid cannot be built via public API", () => {
+  it("parseCadence returns a value usable as Cadence (happy path)", () => {
+    const c = parseCadence({ kind: "daily" });
+    expect(c.kind).toBe("daily");
+  });
+
+  it.each([
+    { name: "zero days", raw: { kind: "every_n_days", days: 0 } },
+    { name: "negative days", raw: { kind: "every_n_days", days: -1 } },
+    { name: "float days", raw: { kind: "every_n_days", days: 2.5 } },
+    { name: "unknown kind", raw: { kind: "hourly" } },
+  ])("rejects $name — no Cadence value escapes", ({ raw }) => {
+    expect(() => parseCadence(raw)).toThrow(InvalidCadenceError);
+  });
+});
+
+describe("parseEvaluateOptions — branded valid-by-construction", () => {
+  it("accepts positive integer horizonDays", () => {
+    expect(parseEvaluateOptions({ horizonDays: 1 }).horizonDays).toBe(1);
+    expect(parseEvaluateOptions({ horizonDays: 14 }).horizonDays).toBe(14);
+  });
+
+  it.each([
+    { name: "zero", raw: { horizonDays: 0 } },
+    { name: "negative", raw: { horizonDays: -3 } },
+    { name: "float", raw: { horizonDays: 1.5 } },
+    { name: "NaN", raw: { horizonDays: Number.NaN } },
+    { name: "missing", raw: {} },
+    { name: "extra key", raw: { horizonDays: 7, x: 1 } },
+  ])("rejects $name as RangeError", ({ raw }) => {
+    expect(() => parseEvaluateOptions(raw)).toThrow(RangeError);
+    expect(() => parseEvaluateOptions(raw)).toThrow(/horizonDays must be a positive integer/);
   });
 });

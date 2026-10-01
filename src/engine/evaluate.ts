@@ -10,8 +10,10 @@ import {
 } from "./types";
 
 /**
- * Fail-loud: horizonDays must be a positive integer (≥ 1).
- * No engine default; no permissive coercion of floats / zero / negatives.
+ * Cheap last-line brand-integrity check for horizonDays.
+ * Primary validation lives in domain `parseEvaluateOptions` (valid-by-construction).
+ * This is NOT a Zod re-parse — only a structural invariant until branded
+ * EvaluateOptions is the exclusive door (TS `as EvaluateOptions` is a hole).
  */
 function assertHorizonDays(horizonDays: number): void {
   if (!Number.isInteger(horizonDays) || horizonDays <= 0) {
@@ -22,9 +24,9 @@ function assertHorizonDays(horizonDays: number): void {
 }
 
 /**
- * Fail-loud for every_n_days.days. Domain/adapters parseCadence also reject
- * these at the boundary; evaluate* still throws if a bad Cadence reaches the
- * engine (strict API — no silent coerce).
+ * Cheap last-line brand-integrity check for every_n_days.days.
+ * Primary validation lives in domain `parseCadence` / `parseCadenceJson`.
+ * Not a Zod re-parse — structural only until branded Cadence is exclusive.
  */
 function assertEveryNDays(days: number): void {
   if (!Number.isInteger(days) || days <= 0) {
@@ -34,7 +36,7 @@ function assertEveryNDays(days: number): void {
   }
 }
 
-/** Fail-loud cadence checks before any early return (including paused). */
+/** Fail-loud cadence brand-integrity checks before any early return (including paused). */
 function assertCadence(cadence: Cadence): void {
   if (cadence.kind === "every_n_days") {
     assertEveryNDays(cadence.days);
@@ -60,10 +62,11 @@ function assertCadence(cadence: Cadence): void {
  *    before today → overdue; today → due; after today within horizon → upcoming;
  *    after horizon → not_applicable.
  *
- * Preconditions (v1): `item` is a valid CatalogItem (zone / lastDone / cadence
- * shape validated at adapters/domain). evaluate* still fail-loud on
- * every_n_days.days ≤ 0 / non-integer (before paused early-return) and
- * horizonDays ≤ 0 / non-integer.
+ * Preconditions (v1): `item.cadence` and `options` are branded domain types
+ * constructed via `parseCadence` / `parseEvaluateOptions` (or CatalogItem
+ * parsers). evaluate* trusts those opaque inputs and keeps only cheap
+ * structural last-line asserts for brand integrity (not Zod re-parse) until
+ * parse/factories are the exclusive door.
  *
  * @see ARCHITECTURE.md and evaluate.test.ts for the full table-driven contract.
  */
@@ -133,7 +136,7 @@ export function evaluateItem(
 /**
  * Evaluate many items. Order of results must match input order.
  * Pure map over evaluateItem — no sorting/filtering here (UI/adapters decide).
- * Validates horizonDays even for an empty catalog (fail-loud options).
+ * Validates horizonDays even for an empty catalog (brand-integrity last-line).
  */
 export function evaluateCatalog(
   items: readonly CatalogItem[],

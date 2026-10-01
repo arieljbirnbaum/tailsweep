@@ -1,8 +1,8 @@
 /**
- * Duekeep domain layer — Zod schemas + constrained types + fail-loud parsers.
+ * Duekeep domain layer — Zod schemas + constrained / branded types + fail-loud parsers.
  *
  * Engine depends on typedefs from here (type-only on the evaluate happy path).
- * Adapters / persistence call parse* helpers at the boundary.
+ * Adapters / persistence call parse* helpers at the boundary (valid-by-construction).
  * Do not import Zod into evaluate* for runtime parse on every call.
  */
 
@@ -25,6 +25,9 @@ export type {
   EveryNDaysCadence,
   Cadence,
 } from "./cadence";
+
+export { evaluateOptionsSchema, parseEvaluateOptions } from "./evaluate-options";
+export type { EvaluateOptions } from "./evaluate-options";
 
 export {
   instantIsoSchema,
