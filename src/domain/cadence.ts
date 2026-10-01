@@ -42,13 +42,13 @@ const everyNDaysCadenceSchema = z
   })
   .strict();
 
-
 /**
  * Branded Cadence — how often an item should be completed again after lastDone.
  * Named kinds use calendar periods in the item's zone; `every_n_days` adds a
  * fixed day count. Valid-by-construction via parseCadence / parseCadenceJson.
- * Plain literals are not assignable. ESLint forbids `as Cadence`; the engine
- * trusts branded inputs and does not re-validate.
+ * Plain literals are not assignable. ESLint forbids bare `as Cadence` and
+ * object-literal assertions (except `as const`); the engine trusts branded
+ * inputs and does not re-validate.
  */
 export const cadenceSchema = z
   .union([namedCadenceSchema, everyNDaysCadenceSchema])

@@ -18,6 +18,9 @@ const engineDbBanMessage =
 const brandAssertionBanMessage =
   "Do not assert `as Cadence` / `as EvaluateOptions`. Construct via domain parseCadence / parseEvaluateOptions (valid-by-construction). Type assertions reopen the brand hole.";
 
+const objectLiteralAssertionBanMessage =
+  "Do not assert an object literal with `as Type` (except `as const`). Object-literal assertions forge branded types via aliases (`as C`, `as Alias`, `as import(...).Cadence`). Construct branded values via domain parse* helpers.";
+
 /** Ban Date construction / static calls (repo-wide). */
 const dateRestrictedSyntax = [
   {
@@ -31,8 +34,14 @@ const dateRestrictedSyntax = [
 ];
 
 /**
- * Ban TypeScript `as Cadence` / `as EvaluateOptions` (and angle-bracket form).
- * Construction + this lint close the brand hole; engine does not re-validate.
+ * Brand-assertion bans (repo-wide):
+ * 1. Bare-name `as Cadence` / `as EvaluateOptions` (and angle-bracket form).
+ * 2. Object-literal type assertions except `as const` / `<const>` —
+ *    closes alias bypasses (`as C`, `as Alias`, `as import(...).Cadence`)
+ *    without type-aware resolution. Legitimate non-literal casts
+ *    (`value as Error`, `raw as Record<string, unknown>`, `as unknown`) stay OK.
+ * `as const` is a TSTypeReference whose typeName is Identifier "const"
+ * (not TSConstKeyword) in the typescript-eslint AST.
  */
 const brandAssertionRestrictedSyntax = [
   {
@@ -44,6 +53,16 @@ const brandAssertionRestrictedSyntax = [
     selector:
       "TSTypeAssertion[typeAnnotation.typeName.name=/^(Cadence|EvaluateOptions)$/]",
     message: brandAssertionBanMessage,
+  },
+  {
+    selector:
+      "TSAsExpression[expression.type='ObjectExpression']:not([typeAnnotation.typeName.name='const'])",
+    message: objectLiteralAssertionBanMessage,
+  },
+  {
+    selector:
+      "TSTypeAssertion[expression.type='ObjectExpression']:not([typeAnnotation.typeName.name='const'])",
+    message: objectLiteralAssertionBanMessage,
   },
 ];
 

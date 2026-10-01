@@ -30,8 +30,9 @@ import {
  * Preconditions (v1): `item.cadence` and `options` are branded domain types
  * constructed via `parseCadence` / `parseEvaluateOptions` (or CatalogItem
  * parsers). evaluate* trusts those opaque inputs completely — no structural
- * brand-integrity re-checks. Construction + ESLint ban on `as Cadence` /
- * `as EvaluateOptions` close the door.
+ * brand-integrity re-checks. Construction + ESLint (bare `as Cadence` /
+ * `as EvaluateOptions`, object-literal assertions except `as const`) close
+ * the forge-via-literal path; non-literal `value as Alias` is not type-aware-banned.
  *
  * @see ARCHITECTURE.md and evaluate.test.ts for the full table-driven contract.
  */

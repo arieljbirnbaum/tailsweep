@@ -46,3 +46,6 @@ duekeep.db-*
 *.db
 
 .mcp-push*.json
+
+# brand-assertion lint probe (scripts/assert-brand-assertion-lint.mjs)
+.tmp-brand-lint-*/
