@@ -1,9 +1,9 @@
 /**
  * EvaluateOptions schema + factories / parse helpers.
  * Source of truth for horizonDays (positive integer >= 1).
- * Prefer createEvaluateOptions for in-app construction (typed input).
+ * Prefer evaluateOptions for in-app construction (typed input).
  * Use parseEvaluateOptions for unknown / deserialization boundaries.
- * Engine imports the branded type only; adapters/UX call create* or parse* at the edge.
+ * Engine imports the branded type only; adapters/UX call `evaluateOptions` or parse* at the edge.
  * Defaults belong in UX/adapters — never in the engine.
  */
 
@@ -23,7 +23,7 @@ export const evaluateOptionsSchema = z
 export type EvaluateOptions = z.infer<typeof evaluateOptionsSchema>;
 
 /** Typed input for in-app EvaluateOptions construction (not unknown). */
-export type CreateEvaluateOptionsInput = {
+export type EvaluateOptionsInput = {
   horizonDays: number;
 };
 
@@ -32,8 +32,8 @@ export type CreateEvaluateOptionsInput = {
  * Preferred over parseEvaluateOptions inside the app.
  * Throws RangeError wrapping Zod's formatted message on invalid values.
  */
-export function createEvaluateOptions(
-  input: CreateEvaluateOptionsInput,
+export function evaluateOptions(
+  input: EvaluateOptionsInput,
 ): EvaluateOptions {
   return parseEvaluateOptions(input);
 }

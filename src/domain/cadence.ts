@@ -1,11 +1,11 @@
 /**
  * Cadence schemas + factories / parse helpers.
  * Source of truth for Cadence shape and constraints (positive every_n_days.days).
- * Branded opaque Cadence: invalid values cannot be built via createCadence /
+ * Branded opaque Cadence: invalid values cannot be built via cadence /
  * parseCadence / parseCadenceJson.
- * Prefer createCadence for in-app construction (typed input).
+ * Prefer cadence for in-app construction (typed input).
  * Use parseCadence / parseCadenceJson for unknown / JSON deserialization boundaries.
- * Engine imports the branded type only; adapters/persistence call create* or parse* at the edge.
+ * Engine imports the branded type only; adapters/persistence call `cadence` or parse* at the edge.
  */
 
 import { z } from "zod";
@@ -46,7 +46,7 @@ const everyNDaysCadenceSchema = z
 /**
  * Branded Cadence — how often an item should be completed again after lastDone.
  * Named kinds use calendar periods in the item's zone; `every_n_days` adds a
- * fixed day count. Valid-by-construction via createCadence / parseCadence /
+ * fixed day count. Valid-by-construction via cadence / parseCadence /
  * parseCadenceJson. Plain literals are not assignable. ESLint blanket-bans type
  * assertions except `as const` / `<const>` (other escapes need a scoped carve-out;
  * never chained). The engine trusts branded inputs and does not re-validate.
@@ -62,7 +62,7 @@ export type Cadence = z.infer<typeof cadenceSchema>;
  * Named kinds or every_n_days with a days number — runtime Zod still enforces
  * positive integer days / no extra keys.
  */
-export type CreateCadenceInput =
+export type CadenceInput =
   | { kind: NamedCadenceKind }
   | { kind: "every_n_days"; days: number };
 
@@ -75,7 +75,7 @@ function invalidCadenceFromZod(error: z.ZodError): InvalidCadenceError {
  * Preferred over parseCadence inside the app.
  * Throws InvalidCadenceError wrapping Zod's formatted message on bad shape.
  */
-export function createCadence(input: CreateCadenceInput): Cadence {
+export function cadence(input: CadenceInput): Cadence {
   return parseCadence(input);
 }
 
