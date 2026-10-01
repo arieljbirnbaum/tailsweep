@@ -7,28 +7,16 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { parseCadence } from "@/domain/cadence";
-import { parseEvaluateOptions } from "@/domain/evaluate-options";
+import { createCadence } from "@/domain/cadence";
+import { createEvaluateOptions } from "@/domain/evaluate-options";
 import { evaluateItem, evaluateCatalog } from "./evaluate";
 import { Temporal } from "./temporal";
-import type { Cadence, CatalogItem, DueState, EvaluateOptions } from "./types";
+import type { CatalogItem, DueState } from "./types";
 
 const ZONE = "Europe/Berlin";
 const HORIZON = 7;
 /** Sun afternoon UTC ≈ Berlin CEST (local calendar date 2026-09-27). */
 const NOW = Temporal.Instant.from("2026-09-27T12:00:00.000Z");
-
-/** Domain factory — branded Cadence (tests must not use bare literals). */
-function cadence(raw: unknown): Cadence {
-  return parseCadence(raw);
-}
-
-/** Domain factory — branded EvaluateOptions. */
-function options(horizonDays: number): EvaluateOptions {
-  return parseEvaluateOptions({ horizonDays });
-}
-
-
 function item(
   overrides: Partial<CatalogItem> & Pick<CatalogItem, "id" | "cadence">,
 ): CatalogItem {
@@ -80,7 +68,7 @@ const cases: Case[] = [
     name: "paused is always not_applicable with null nextDue",
     item: item({
       id: "paused-daily",
-      cadence: cadence({ kind: "daily" }),
+      cadence: createCadence({ kind: "daily" }),
       lastDone: Temporal.Instant.from("2026-09-01T10:00:00.000Z"),
       status: "paused",
     }),
@@ -91,7 +79,7 @@ const cases: Case[] = [
     name: "as_needed with prior completion → not_applicable, null nextDue",
     item: item({
       id: "as-needed-done",
-      cadence: cadence({ kind: "as_needed" }),
+      cadence: createCadence({ kind: "as_needed" }),
       lastDone: Temporal.Instant.from("2026-01-01T10:00:00.000Z"),
     }),
     wantState: "not_applicable",
@@ -101,7 +89,7 @@ const cases: Case[] = [
     name: "as_needed never done → due; nextDue = today SOD",
     item: item({
       id: "as-needed-new",
-      cadence: cadence({ kind: "as_needed" }),
+      cadence: createCadence({ kind: "as_needed" }),
       lastDone: null,
     }),
     wantState: "due",
@@ -111,7 +99,7 @@ const cases: Case[] = [
     name: "daily never done → overdue; nextDue = today SOD (not wall-clock now)",
     item: item({
       id: "daily-new",
-      cadence: cadence({ kind: "daily" }),
+      cadence: createCadence({ kind: "daily" }),
       lastDone: null,
     }),
     wantState: "overdue",
@@ -121,7 +109,7 @@ const cases: Case[] = [
     name: "daily lastDone yesterday → due today; nextDue = today SOD",
     item: item({
       id: "daily-yday",
-      cadence: cadence({ kind: "daily" }),
+      cadence: createCadence({ kind: "daily" }),
       lastDone: Temporal.Instant.from("2026-09-26T10:00:00.000Z"),
     }),
     wantState: "due",
@@ -131,7 +119,7 @@ const cases: Case[] = [
     name: "daily lastDone two days ago → overdue; nextDue = that due day's SOD",
     item: item({
       id: "daily-old",
-      cadence: cadence({ kind: "daily" }),
+      cadence: createCadence({ kind: "daily" }),
       lastDone: Temporal.Instant.from("2026-09-25T10:00:00.000Z"),
     }),
     wantState: "overdue",
@@ -141,7 +129,7 @@ const cases: Case[] = [
     name: "daily lastDone today → upcoming tomorrow within horizon",
     item: item({
       id: "daily-today",
-      cadence: cadence({ kind: "daily" }),
+      cadence: createCadence({ kind: "daily" }),
       lastDone: Temporal.Instant.from("2026-09-27T08:00:00.000Z"),
     }),
     wantState: "upcoming",
@@ -151,7 +139,7 @@ const cases: Case[] = [
     name: "weekly lastDone 3 days ago → upcoming (due in 4 days)",
     item: item({
       id: "weekly-mid",
-      cadence: cadence({ kind: "weekly" }),
+      cadence: createCadence({ kind: "weekly" }),
       lastDone: Temporal.Instant.from("2026-09-24T10:00:00.000Z"),
     }),
     wantState: "upcoming",
@@ -161,7 +149,7 @@ const cases: Case[] = [
     name: "weekly lastDone 7 days ago → due",
     item: item({
       id: "weekly-due",
-      cadence: cadence({ kind: "weekly" }),
+      cadence: createCadence({ kind: "weekly" }),
       lastDone: Temporal.Instant.from("2026-09-20T10:00:00.000Z"),
     }),
     wantState: "due",
@@ -171,7 +159,7 @@ const cases: Case[] = [
     name: "weekly lastDone 10 days ago → overdue",
     item: item({
       id: "weekly-over",
-      cadence: cadence({ kind: "weekly" }),
+      cadence: createCadence({ kind: "weekly" }),
       lastDone: Temporal.Instant.from("2026-09-17T10:00:00.000Z"),
     }),
     wantState: "overdue",
@@ -181,7 +169,7 @@ const cases: Case[] = [
     name: "every_n_days(3) lastDone 3 days ago → due",
     item: item({
       id: "n3-due",
-      cadence: cadence({ kind: "every_n_days", days: 3 }),
+      cadence: createCadence({ kind: "every_n_days", days: 3 }),
       lastDone: Temporal.Instant.from("2026-09-24T10:00:00.000Z"),
     }),
     wantState: "due",
@@ -191,7 +179,7 @@ const cases: Case[] = [
     name: "every_n_days(14) beyond horizon 7 → not_applicable",
     item: item({
       id: "n14-far",
-      cadence: cadence({ kind: "every_n_days", days: 14 }),
+      cadence: createCadence({ kind: "every_n_days", days: 14 }),
       lastDone: Temporal.Instant.from("2026-09-26T10:00:00.000Z"),
     }),
     horizonDays: 7,
@@ -203,7 +191,7 @@ const cases: Case[] = [
     name: "every_n_days(14) within extended horizon → upcoming",
     item: item({
       id: "n14-near",
-      cadence: cadence({ kind: "every_n_days", days: 14 }),
+      cadence: createCadence({ kind: "every_n_days", days: 14 }),
       lastDone: Temporal.Instant.from("2026-09-26T10:00:00.000Z"),
     }),
     horizonDays: 20,
@@ -214,7 +202,7 @@ const cases: Case[] = [
     name: "horizon inclusive: nextDue local date === today+horizon → upcoming",
     item: item({
       id: "horizon-eq",
-      cadence: cadence({ kind: "every_n_days", days: 7 }),
+      cadence: createCadence({ kind: "every_n_days", days: 7 }),
       // lastDone local 2026-09-27 → next 2026-10-04 === today+7
       lastDone: Temporal.Instant.from("2026-09-27T08:00:00.000Z"),
     }),
@@ -226,7 +214,7 @@ const cases: Case[] = [
     name: "horizon exclusive beyond: nextDue === today+horizon+1 → not_applicable",
     item: item({
       id: "horizon-gt",
-      cadence: cadence({ kind: "every_n_days", days: 8 }),
+      cadence: createCadence({ kind: "every_n_days", days: 8 }),
       lastDone: Temporal.Instant.from("2026-09-27T08:00:00.000Z"),
     }),
     horizonDays: 7,
@@ -237,7 +225,7 @@ const cases: Case[] = [
     name: "monthly lastDone same day last month → due",
     item: item({
       id: "monthly-due",
-      cadence: cadence({ kind: "monthly" }),
+      cadence: createCadence({ kind: "monthly" }),
       lastDone: Temporal.Instant.from("2026-08-27T10:00:00.000Z"),
     }),
     wantState: "due",
@@ -247,7 +235,7 @@ const cases: Case[] = [
     name: "yearly lastDone last year same calendar day → due",
     item: item({
       id: "yearly-due",
-      cadence: cadence({ kind: "yearly" }),
+      cadence: createCadence({ kind: "yearly" }),
       lastDone: Temporal.Instant.from("2025-09-27T10:00:00.000Z"),
     }),
     wantState: "due",
@@ -257,7 +245,7 @@ const cases: Case[] = [
     name: "quarterly lastDone ~3 months ago → due",
     item: item({
       id: "quarterly-due",
-      cadence: cadence({ kind: "quarterly" }),
+      cadence: createCadence({ kind: "quarterly" }),
       lastDone: Temporal.Instant.from("2026-06-27T10:00:00.000Z"),
     }),
     wantState: "due",
@@ -267,7 +255,7 @@ const cases: Case[] = [
     name: "monthly lastDone such that next is yesterday → overdue",
     item: item({
       id: "monthly-over",
-      cadence: cadence({ kind: "monthly" }),
+      cadence: createCadence({ kind: "monthly" }),
       lastDone: Temporal.Instant.from("2026-08-26T10:00:00.000Z"),
     }),
     wantState: "overdue",
@@ -277,7 +265,7 @@ const cases: Case[] = [
     name: "monthly lastDone such that next is in a few days within horizon → upcoming",
     item: item({
       id: "monthly-upcoming",
-      cadence: cadence({ kind: "monthly" }),
+      cadence: createCadence({ kind: "monthly" }),
       lastDone: Temporal.Instant.from("2026-08-30T10:00:00.000Z"),
     }),
     wantState: "upcoming",
@@ -287,7 +275,7 @@ const cases: Case[] = [
     name: "quarterly lastDone such that next is yesterday → overdue",
     item: item({
       id: "quarterly-over",
-      cadence: cadence({ kind: "quarterly" }),
+      cadence: createCadence({ kind: "quarterly" }),
       lastDone: Temporal.Instant.from("2026-06-26T10:00:00.000Z"),
     }),
     wantState: "overdue",
@@ -297,7 +285,7 @@ const cases: Case[] = [
     name: "yearly lastDone such that next is in a few days within horizon → upcoming",
     item: item({
       id: "yearly-upcoming",
-      cadence: cadence({ kind: "yearly" }),
+      cadence: createCadence({ kind: "yearly" }),
       lastDone: Temporal.Instant.from("2025-09-30T10:00:00.000Z"),
     }),
     wantState: "upcoming",
@@ -308,7 +296,7 @@ const cases: Case[] = [
     name: "month-end overflow: Jan 31 + monthly → Feb 28 SOD (constrain)",
     item: item({
       id: "monthly-jan31",
-      cadence: cadence({ kind: "monthly" }),
+      cadence: createCadence({ kind: "monthly" }),
       lastDone: Temporal.Instant.from("2026-01-31T12:00:00.000Z"),
     }),
     now: Temporal.Instant.from("2026-02-28T12:00:00.000Z"),
@@ -319,7 +307,7 @@ const cases: Case[] = [
     name: "month-end overflow: Jan 31 + monthly → Feb 29 SOD in leap year (constrain)",
     item: item({
       id: "monthly-jan31-leap",
-      cadence: cadence({ kind: "monthly" }),
+      cadence: createCadence({ kind: "monthly" }),
       lastDone: Temporal.Instant.from("2024-01-31T12:00:00.000Z"),
     }),
     now: Temporal.Instant.from("2024-02-29T12:00:00.000Z"),
@@ -330,7 +318,7 @@ const cases: Case[] = [
     name: "leap overflow: Feb 29 + yearly → Feb 28 SOD in non-leap year (constrain)",
     item: item({
       id: "yearly-feb29",
-      cadence: cadence({ kind: "yearly" }),
+      cadence: createCadence({ kind: "yearly" }),
       lastDone: Temporal.Instant.from("2024-02-29T12:00:00.000Z"),
     }),
     now: Temporal.Instant.from("2025-02-28T12:00:00.000Z"),
@@ -342,7 +330,7 @@ const cases: Case[] = [
     name: "DST spring: daily across Berlin spring-forward → due; nextDue = local 2026-03-29 SOD (CEST)",
     item: item({
       id: "dst-spring-daily",
-      cadence: cadence({ kind: "daily" }),
+      cadence: createCadence({ kind: "daily" }),
       lastDone: Temporal.Instant.from("2026-03-28T12:00:00.000Z"),
       zone: "Europe/Berlin",
     }),
@@ -355,7 +343,7 @@ const cases: Case[] = [
     name: "DST fall: daily across Berlin fall-back → due; nextDue = local 2026-10-25 SOD (CET)",
     item: item({
       id: "dst-fall-daily",
-      cadence: cadence({ kind: "daily" }),
+      cadence: createCadence({ kind: "daily" }),
       lastDone: Temporal.Instant.from("2026-10-24T12:00:00.000Z"),
       zone: "Europe/Berlin",
     }),
@@ -369,7 +357,7 @@ const cases: Case[] = [
     name: "America/Los_Angeles daily lastDone yesterday → due; nextDue = LA SOD (not Berlin)",
     item: item({
       id: "la-daily-due",
-      cadence: cadence({ kind: "daily" }),
+      cadence: createCadence({ kind: "daily" }),
       lastDone: Temporal.Instant.from("2026-09-26T19:00:00.000Z"),
       zone: "America/Los_Angeles",
     }),
@@ -382,7 +370,7 @@ const cases: Case[] = [
     name: "civil-date split: near-UTC-midnight Instant — Berlin local date ≠ UTC date → due with Berlin SOD",
     item: item({
       id: "civil-split-berlin",
-      cadence: cadence({ kind: "daily" }),
+      cadence: createCadence({ kind: "daily" }),
       // lastDone local Berlin 2026-09-27 → next = Berlin 2026-09-28 SOD
       lastDone: Temporal.Instant.from("2026-09-27T12:00:00.000Z"),
       zone: "Europe/Berlin",
@@ -396,7 +384,7 @@ const cases: Case[] = [
     name: "civil-date split: same Instant under LA — still Sep 27 locally → upcoming (next = LA Sep 28 SOD)",
     item: item({
       id: "civil-split-la",
-      cadence: cadence({ kind: "daily" }),
+      cadence: createCadence({ kind: "daily" }),
       lastDone: Temporal.Instant.from("2026-09-27T12:00:00.000Z"),
       zone: "America/Los_Angeles",
     }),
@@ -411,7 +399,7 @@ describe("evaluateItem contract", () => {
     const result = evaluateItem(
       c.item,
       c.now ?? NOW,
-      options(c.horizonDays ?? HORIZON),
+      createEvaluateOptions({ horizonDays: c.horizonDays ?? HORIZON }),
     );
     expect(result.itemId).toBe(c.item.id);
     expect(result.state).toBe(c.wantState);
@@ -429,21 +417,21 @@ describe("evaluateCatalog contract", () => {
     const items: CatalogItem[] = [
       item({
         id: "a",
-        cadence: cadence({ kind: "daily" }),
+        cadence: createCadence({ kind: "daily" }),
         status: "paused",
       }),
       item({
         id: "b",
-        cadence: cadence({ kind: "as_needed" }),
+        cadence: createCadence({ kind: "as_needed" }),
         lastDone: null,
       }),
       item({
         id: "c",
-        cadence: cadence({ kind: "daily" }),
+        cadence: createCadence({ kind: "daily" }),
         lastDone: Temporal.Instant.from("2026-09-26T10:00:00.000Z"),
       }),
     ];
-    const results = evaluateCatalog(items, NOW, options(HORIZON));
+    const results = evaluateCatalog(items, NOW, createEvaluateOptions({ horizonDays: HORIZON }));
     expect(results.map((r) => r.itemId)).toEqual(["a", "b", "c"]);
     expect(results[0]?.state).toBe("not_applicable");
     expect(results[0]?.nextDue).toBeNull();
@@ -456,6 +444,6 @@ describe("evaluateCatalog contract", () => {
   });
 
   it("empty catalog → empty results", () => {
-    expect(evaluateCatalog([], NOW, options(HORIZON))).toEqual([]);
+    expect(evaluateCatalog([], NOW, createEvaluateOptions({ horizonDays: HORIZON }))).toEqual([]);
   });
 });

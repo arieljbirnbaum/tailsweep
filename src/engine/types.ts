@@ -4,7 +4,7 @@
  *
  * Domain owns branded Cadence / EvaluateOptions / CatalogItem constraints (Zod).
  * Engine logic stays pure and type-only-imports from domain — no Zod runtime
- * parse on evaluate*. Adapters construct via domain parse* factories.
+ * parse on evaluate*. Adapters construct via domain create* (typed) or parse* (deserialization).
  */
 
 import type { Temporal } from "./temporal";

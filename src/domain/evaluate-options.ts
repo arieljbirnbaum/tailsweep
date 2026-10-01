@@ -1,15 +1,17 @@
 /**
- * EvaluateOptions schema + parse helper.
- * Source of truth for horizonDays (positive integer ≥ 1).
- * Engine imports the branded type only; adapters/UX call parse* at the boundary.
+ * EvaluateOptions schema + factories / parse helpers.
+ * Source of truth for horizonDays (positive integer >= 1).
+ * Prefer createEvaluateOptions for in-app construction (typed input).
+ * Use parseEvaluateOptions for unknown / deserialization boundaries.
+ * Engine imports the branded type only; adapters/UX call create* or parse* at the edge.
  * Defaults belong in UX/adapters — never in the engine.
  */
 
 import { z } from "zod";
 
 /**
- * Required evaluate options. `horizonDays` is a positive integer (≥ 1).
- * Branded so invalid values cannot be constructed through the public parse API.
+ * Required evaluate options. `horizonDays` is a positive integer (>= 1).
+ * Branded so invalid values cannot be constructed through the public API.
  */
 export const evaluateOptionsSchema = z
   .object({
@@ -20,25 +22,31 @@ export const evaluateOptionsSchema = z
 
 export type EvaluateOptions = z.infer<typeof evaluateOptionsSchema>;
 
+/** Typed input for in-app EvaluateOptions construction (not unknown). */
+export type CreateEvaluateOptionsInput = {
+  horizonDays: number;
+};
+
 /**
- * Strict EvaluateOptions parse from unknown.
- * Throws RangeError on ≤ 0 / non-integer / bad shape.
+ * Construct branded EvaluateOptions from a typed input.
+ * Preferred over parseEvaluateOptions inside the app.
+ * Throws RangeError wrapping Zod's formatted message on invalid values.
+ */
+export function createEvaluateOptions(
+  input: CreateEvaluateOptionsInput,
+): EvaluateOptions {
+  return parseEvaluateOptions(input);
+}
+
+/**
+ * Strict EvaluateOptions parse from unknown (deserialization / boundary).
+ * Throws RangeError wrapping Zod's formatted error (z.prettifyError).
  * No permissive coercions; no defaults. Engine trusts the branded result.
  */
 export function parseEvaluateOptions(raw: unknown): EvaluateOptions {
   const result = evaluateOptionsSchema.safeParse(raw);
   if (!result.success) {
-    // `in` narrowing for error copy — no type assertion.
-    const horizon =
-      raw !== null &&
-      typeof raw === "object" &&
-      !Array.isArray(raw) &&
-      "horizonDays" in raw
-        ? raw.horizonDays
-        : raw;
-    throw new RangeError(
-      `horizonDays must be a positive integer, got ${String(horizon)}`,
-    );
+    throw new RangeError(z.prettifyError(result.error));
   }
   return result.data;
 }
