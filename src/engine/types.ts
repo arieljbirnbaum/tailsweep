@@ -47,7 +47,8 @@ export type Clock = {
 export type EvaluateOptions = {
   /**
    * How many calendar days ahead (from "today" in the item's zone) to treat
-   * as "upcoming". Required — UX/adapters supply this; engine has no default.
+   * as "upcoming". Required positive integer (≥ 1) — UX/adapters supply this;
+   * engine has no default and throws RangeError on ≤ 0 / non-integer.
    */
   readonly horizonDays: number;
 };

@@ -2,14 +2,16 @@
  * Behavioral tests for the due-engine.
  *
  * Prefer Instant.equals for nextDue — state-only rows miss SOD vs wall-clock bugs.
+ * SOD proof is wantNextDue.equals only (no weak nextDue !== now asserts).
  *
  * Run: pnpm test
  */
 
 import { describe, expect, it } from "vitest";
 import { evaluateItem, evaluateCatalog } from "./evaluate";
+import { InvalidCadenceError } from "./errors";
 import { Temporal } from "./temporal";
-import type { CatalogItem, DueState } from "./types";
+import type { Cadence, CatalogItem, DueState } from "./types";
 
 const ZONE = "Europe/Berlin";
 const HORIZON = 7;
@@ -290,6 +292,29 @@ const cases: Case[] = [
     wantState: "upcoming",
     wantNextDue: sod("2026-09-30"),
   },
+  // --- Month-end / leap overflow (Temporal constrain intent) ---
+  {
+    name: "month-end overflow: Jan 31 + monthly → Feb 28 SOD (constrain)",
+    item: item({
+      id: "monthly-jan31",
+      cadence: { kind: "monthly" },
+      lastDone: Temporal.Instant.from("2026-01-31T12:00:00.000Z"),
+    }),
+    now: Temporal.Instant.from("2026-02-28T12:00:00.000Z"),
+    wantState: "due",
+    wantNextDue: sod("2026-02-28"),
+  },
+  {
+    name: "leap overflow: Feb 29 + yearly → Feb 28 SOD in non-leap year (constrain)",
+    item: item({
+      id: "yearly-feb29",
+      cadence: { kind: "yearly" },
+      lastDone: Temporal.Instant.from("2024-02-29T12:00:00.000Z"),
+    }),
+    now: Temporal.Instant.from("2025-02-28T12:00:00.000Z"),
+    wantState: "due",
+    wantNextDue: sod("2025-02-28"),
+  },
   // --- DST lock-in (Europe/Berlin): spring gap / fall fold SOD Instants ---
   {
     name: "DST spring: daily across Berlin spring-forward → due; nextDue = local 2026-03-29 SOD (CEST)",
@@ -388,11 +413,63 @@ describe("evaluateCatalog contract", () => {
         cadence: { kind: "as_needed" },
         lastDone: null,
       }),
+      item({
+        id: "c",
+        cadence: { kind: "daily" },
+        lastDone: Temporal.Instant.from("2026-09-26T10:00:00.000Z"),
+      }),
     ];
     const results = evaluateCatalog(items, NOW, { horizonDays: HORIZON });
-    expect(results.map((r) => r.itemId)).toEqual(["a", "b"]);
+    expect(results.map((r) => r.itemId)).toEqual(["a", "b", "c"]);
     expect(results[0]?.state).toBe("not_applicable");
     expect(results[0]?.nextDue).toBeNull();
     expect(results[1]?.state).toBe("due");
+    expect(results[1]?.nextDue).not.toBeNull();
+    expect(results[1]!.nextDue!.equals(TODAY_SOD)).toBe(true);
+    expect(results[2]?.state).toBe("due");
+    expect(results[2]?.nextDue).not.toBeNull();
+    expect(results[2]!.nextDue!.equals(TODAY_SOD)).toBe(true);
+  });
+
+  it("empty catalog → empty results", () => {
+    expect(evaluateCatalog([], NOW, { horizonDays: HORIZON })).toEqual([]);
+  });
+});
+
+describe("evaluate* fail-loud options / cadence", () => {
+  const base = item({
+    id: "n-bad",
+    cadence: { kind: "every_n_days", days: 3 },
+    lastDone: Temporal.Instant.from("2026-09-24T10:00:00.000Z"),
+  });
+
+  it.each([
+    { name: "zero", days: 0 },
+    { name: "negative", days: -1 },
+    { name: "float", days: 1.5 },
+    { name: "NaN", days: Number.NaN },
+  ])("every_n_days days $name → InvalidCadenceError", ({ days }) => {
+    const bad = item({
+      ...base,
+      // Bypass domain parse — engine must still reject at evaluate*.
+      cadence: { kind: "every_n_days", days } as Cadence,
+    });
+    expect(() => evaluateItem(bad, NOW, { horizonDays: HORIZON })).toThrow(
+      InvalidCadenceError,
+    );
+    expect(() => evaluateCatalog([bad], NOW, { horizonDays: HORIZON })).toThrow(
+      InvalidCadenceError,
+    );
+  });
+
+  it.each([
+    { name: "zero", horizonDays: 0 },
+    { name: "negative", horizonDays: -3 },
+    { name: "float", horizonDays: 1.5 },
+    { name: "NaN", horizonDays: Number.NaN },
+  ])("horizonDays $name → RangeError", ({ horizonDays }) => {
+    expect(() => evaluateItem(base, NOW, { horizonDays })).toThrow(RangeError);
+    expect(() => evaluateCatalog([base], NOW, { horizonDays })).toThrow(RangeError);
+    expect(() => evaluateCatalog([], NOW, { horizonDays })).toThrow(RangeError);
   });
 });

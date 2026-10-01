@@ -1,4 +1,5 @@
 import { match, P } from "ts-pattern";
+import { InvalidCadenceError } from "./errors";
 import { Temporal } from "./temporal";
 import {
   type Cadence,
@@ -9,6 +10,31 @@ import {
 } from "./types";
 
 /**
+ * Fail-loud: horizonDays must be a positive integer (≥ 1).
+ * No engine default; no permissive coercion of floats / zero / negatives.
+ */
+function assertHorizonDays(horizonDays: number): void {
+  if (!Number.isInteger(horizonDays) || horizonDays <= 0) {
+    throw new RangeError(
+      `horizonDays must be a positive integer, got ${String(horizonDays)}`,
+    );
+  }
+}
+
+/**
+ * Fail-loud for every_n_days.days. Domain/adapters parseCadence also reject
+ * these at the boundary; evaluate* still throws if a bad Cadence reaches the
+ * engine (strict API — no silent coerce).
+ */
+function assertEveryNDays(days: number): void {
+  if (!Number.isInteger(days) || days <= 0) {
+    throw new InvalidCadenceError(
+      `every_n_days.days must be a positive integer, got ${String(days)}`,
+    );
+  }
+}
+
+/**
  * Evaluate a single catalog item against `now`.
  *
  * CONTRACT — summary:
@@ -17,13 +43,19 @@ import {
  *    never done → due (nextDue = start of today in item.zone).
  * 3. Completion-anchored calendar intent: cadence advances on the item’s local
  *    civil calendar in `item.zone`; `nextDue` is the Instant at start of that
- *    due local day. Contract check: Instant.equals on SOD Instants. Midnight/DST
- *    uses Temporal’s default disambiguation `compatible` (lock in tests). Not a
+ *    due local day. Month-end / leap overflow uses Temporal constrain (e.g.
+ *    Jan 31 + monthly → Feb 28; Feb 29 + yearly → Feb 28 in a non-leap year).
+ *    Contract check: Instant.equals on SOD Instants. Midnight/DST uses
+ *    Temporal’s default disambiguation `compatible` (lock in tests). Not a
  *    prescribed Instant→ZDT→add→startOfDay / PlainDate call pipeline. Scheduled
  *    never done → overdue (nextDue = start of today in item.zone).
  * 4. Compare next-due SOD Instant to "today" SOD Instant in zone:
  *    before today → overdue; today → due; after today within horizon → upcoming;
  *    after horizon → not_applicable.
+ *
+ * Preconditions (v1): `item` is a valid CatalogItem (zone / lastDone / cadence
+ * shape validated at adapters/domain). evaluate* still fail-loud on
+ * every_n_days.days ≤ 0 / non-integer and horizonDays ≤ 0 / non-integer.
  *
  * @see ARCHITECTURE.md and evaluate.test.ts for the full table-driven contract.
  */
@@ -32,6 +64,8 @@ export function evaluateItem(
   now: Temporal.Instant,
   options: EvaluateOptions,
 ): EvaluatedItem {
+  assertHorizonDays(options.horizonDays);
+
   const { id: itemId, status, cadence, lastDone } = item;
 
   if (status === "paused") {
@@ -47,7 +81,10 @@ export function evaluateItem(
     .with({ kind: "monthly" }, () => ({ months: 1 }))
     .with({ kind: "quarterly" }, () => ({ months: 3 }))
     .with({ kind: "yearly" }, () => ({ years: 1 }))
-    .with({ kind: "every_n_days", days: P.select("days") }, ({ days }) => ({ days }))
+    .with({ kind: "every_n_days", days: P.select("days") }, ({ days }) => {
+      assertEveryNDays(days);
+      return { days };
+    })
     .with({ kind: "as_needed" }, () => null)
     .exhaustive();
 
@@ -90,11 +127,13 @@ export function evaluateItem(
 /**
  * Evaluate many items. Order of results must match input order.
  * Pure map over evaluateItem — no sorting/filtering here (UI/adapters decide).
+ * Validates horizonDays even for an empty catalog (fail-loud options).
  */
 export function evaluateCatalog(
   items: readonly CatalogItem[],
   now: Temporal.Instant,
   options: EvaluateOptions,
 ): EvaluatedItem[] {
+  assertHorizonDays(options.horizonDays);
   return items.map((item) => evaluateItem(item, now, options));
 }

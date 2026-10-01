@@ -35,10 +35,10 @@ If you need “today” inside the engine, take a `Temporal.Instant` argument or
 
 | Concept           | Notes                                                                                                                                           |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Cadence`         | `daily` / `weekly` / `monthly` / `quarterly` / `yearly` / `as_needed` / `{ kind: "every_n_days", days: N }`                                     |
+| `Cadence`         | `daily` / `weekly` / `monthly` / `quarterly` / `yearly` / `as_needed` / `{ kind: "every_n_days", days: N }` (`N` positive int; see validation) |
 | `CatalogItem`     | `id`, `name`, `cadence`, `lastDone: Temporal.Instant \| null`, required `zone` (IANA id), `status: active\|paused`                              |
 | `DueState`        | `due` \| `overdue` \| `upcoming` \| `not_applicable`                                                                                            |
-| `EvaluateOptions` | required `horizonDays: number` (no engine default; no `timeZone`)                                                                               |
+| `EvaluateOptions` | required `horizonDays: number` — positive integer ≥ 1 (engine throws `RangeError` otherwise; no default; no `timeZone`)                        |
 | `Clock`           | `{ now(): Temporal.Instant }` — inject at edges; `fixedClock` in tests; production `systemClock` at `src/time/system-clock.ts` (outside engine) |
 
 ### Functions
@@ -55,8 +55,9 @@ Behavioral contract is this doc plus the table-driven cases in `evaluate.test.ts
 - **Calendar intent** (not a required call pipeline): cadence advances on the item’s **local civil calendar** in required `item.zone`. `nextDue` is the **Instant at start of that due local day** in `item.zone`. Contract equality is `Temporal.Instant.equals` on those SOD Instants. Implementations may use any Temporal path that realizes this intent (e.g. ZDT or PlainDate); do **not** treat Instant→ZDT→add→startOfDay (or PlainDate add) as the prescribed pipeline.
 - **Midnight / DST**: when a local midnight is ambiguous or skipped, use Temporal’s default disambiguation **`compatible`**. Lock spring/fall SOD Instants in `evaluate.test.ts`; do not invent silent half-hour offsets. No `options.timeZone`, no `"UTC"` default in evaluate\*.
 - UX/adapters supply `zone` on each catalog item and `horizonDays` on every evaluate\* call. The engine requires both; it does not pick a dogfood default.
-- `horizonDays` (required): how far ahead “upcoming” extends; beyond horizon → `not_applicable`.
+- `horizonDays` (required positive integer ≥ 1): how far ahead “upcoming” extends; beyond horizon → `not_applicable`. Engine throws `RangeError` on ≤ 0 / non-integer (not adapter-owned silence).
 - Invalid Instant strings: let Temporal construction throw (`TypeError` / `RangeError`). **Zone** is validated at the domain boundary (`zoneSchema` / `parseZone`) against runtime tzdata via `Intl.supportedValuesOf("timeZone")` (Temporal fallback for ids Intl omits, e.g. `UTC`); unknown / padded zones fail loud at parse — not deferred to evaluate. Adapters own validation — the engine does **not** expose `assertDate` / `InvalidDateError`.
+- **v1 adapter-validation stance:** `evaluate*` assumes a valid `CatalogItem` (well-typed `lastDone: Instant | null`, known IANA `zone`, cadence shape from domain). Invalid zone / bad Instant ISO / malformed cadence are rejected by domain `parse*` at adapters/persistence — not re-checked inside evaluate on the happy path. Engine still fail-louds on `every_n_days.days ≤ 0` / non-integer (`InvalidCadenceError`) and `horizonDays ≤ 0` / non-integer (`RangeError`) if those slip through (strict API; no permissive coercions).
 
 ### Temporal polyfill & runtime
 
@@ -84,16 +85,18 @@ Behavioral contract is this doc plus the table-driven cases in `evaluate.test.ts
    - today < next ≤ today+horizon → `upcoming`
    - next > today+horizon → `not_applicable`
 
-Cadence increments (from lastDone’s local date):
+Cadence increments (from lastDone’s local civil date in `item.zone`):
 
-- daily → +1 day; weekly → +7 days; monthly → +1 calendar month; quarterly → +3 months; yearly → +1 year; `every_n_days` → +N days.
+- daily → +1 day; weekly → +7 days; monthly → +1 calendar month; quarterly → +3 months; yearly → +1 year; `every_n_days` → +N days (`N` positive integer).
+- **Month-end / leap overflow (Temporal constrain intent):** adding months/years keeps the civil day when it exists; otherwise clamps to the last valid day of the target month. Examples: Jan 31 + monthly → Feb 28 (non-leap) / Feb 29 (leap); Feb 29 + yearly → Feb 28 in a non-leap year. Documented intent only — do **not** prescribe ZDT vs PlainDate call pipelines; contract equality remains `Temporal.Instant.equals` on SOD Instants (locked in `evaluate.test.ts`).
+- **`every_n_days` validation:** domain `parseCadence` / adapters reject `days ≤ 0` / non-integer at the boundary. `evaluate*` also throws `InvalidCadenceError` if such a cadence reaches the engine (fail loud; no coerce).
 
 ## Debuggability
 
 - **Injectable clock** — no `Temporal.Now` / system time in `src/engine` (lint-enforced); production clock at `src/time/system-clock.ts`.
-- **Typed errors** — `NotImplementedError`, `InvalidCadenceError` (codes on `.code`). Temporal construction errors surface as-is.
-- **Table-driven tests** — one row per behavior; failures name the case.
-- **No silent Instant coercion** — bad strings throw from Temporal; adapters validate at the edge.
+- **Typed errors** — `InvalidCadenceError` (code on `.code`; domain + engine). `RangeError` for invalid `horizonDays`. Temporal construction errors surface as-is. `NotImplementedError` is reserved for future stubs (evaluate* does not throw it).
+- **Table-driven tests** — one row per behavior; failures name the case. SOD proof is `wantNextDue.equals` only.
+- **No silent Instant / option coercion** — bad Instant strings throw from Temporal; bad `horizonDays` / `every_n_days.days` throw in evaluate*; adapters validate CatalogItem at the edge.
 
 ## DB layer (`src/db`)
 
@@ -158,7 +161,7 @@ Persistence lives **outside** `src/engine`. The engine stays pure (no Drizzle / 
 - [ ] Engine still has **zero** Next/React/Drizzle/fs/fetch imports (`rg` the folder); no `zod` or fat `@/domain` value import under `src/engine` (domain owns runtime parse; errors via `@/domain/errors`).
 - [ ] Domain schemas remain the source of truth for Cadence / CatalogItem constraints; persistence uses domain parsers.
 - [ ] New due behavior: update ARCHITECTURE state/cadence rules and add/adjust a table row in `evaluate.test.ts`.
-- [ ] `pnpm typecheck` && `pnpm lint` && `pnpm test` (tests green once engine is implemented).
+- [ ] `pnpm typecheck` && `pnpm lint` && `pnpm test` (all green).
 - [ ] Times are `Temporal.Instant`; every `CatalogItem` has required `zone`; every evaluate\* call passes `horizonDays`.
 - [ ] Lint enforces **no `Date`** (repo-wide), **no `Temporal.Now`**, **no `zod`**, and **no value `@/domain` barrel** under `src/engine/**` (`@/domain/errors` + type-only `@/domain` allowed); production clock stays outside the engine (`src/time/system-clock.ts`).
 - [ ] No due math added to `src/db`.
