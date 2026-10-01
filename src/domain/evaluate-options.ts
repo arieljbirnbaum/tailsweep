@@ -28,9 +28,13 @@ export type EvaluateOptions = z.infer<typeof evaluateOptionsSchema>;
 export function parseEvaluateOptions(raw: unknown): EvaluateOptions {
   const result = evaluateOptionsSchema.safeParse(raw);
   if (!result.success) {
+    // `in` narrowing for error copy — no type assertion.
     const horizon =
-      raw !== null && typeof raw === "object" && !Array.isArray(raw)
-        ? (raw as Record<string, unknown>).horizonDays
+      raw !== null &&
+      typeof raw === "object" &&
+      !Array.isArray(raw) &&
+      "horizonDays" in raw
+        ? raw.horizonDays
         : raw;
     throw new RangeError(
       `horizonDays must be a positive integer, got ${String(horizon)}`,

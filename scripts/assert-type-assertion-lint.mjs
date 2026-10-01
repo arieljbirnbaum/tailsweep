@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 /**
- * Regression: brand-assertion lint must fail the three Skeptic alias bypasses
- * (renamed import, type Alias = Cadence, import().Cadence) and still allow
- * `as const` / non-literal `value as Error`. Uses ESLint lintText + repo config.
+ * Regression: blanket type-assertion lint.
+ * - Banned patterns (Cadence forges, aliases, readonly casts, literal forges,
+ *   chained `as unknown as T`) must fail no-restricted-syntax.
+ * - Allowlisted patterns (`as const`, `as Error`, `as Record<…>`, `as unknown`)
+ *   must stay clean — and chains involving allowlisted steps must still fail.
+ * Uses ESLint lintText + repo config.
  */
 import { ESLint } from "eslint";
 import { fileURLToPath } from "node:url";
@@ -41,7 +44,55 @@ const _bad = { kind: "daily" } as Cadence;
 `,
   },
   {
-    name: "as-const-ok.ts",
+    name: "bare-evaluate-options.ts",
+    mustFail: true,
+    code: `import type { EvaluateOptions } from "@/domain";
+const _bad = { horizonDays: 7 } as EvaluateOptions;
+`,
+  },
+  {
+    name: "readonly-string-array.ts",
+    mustFail: true,
+    code: `const kinds = ["daily"] as const;
+const _bad = kinds as readonly string[];
+`,
+  },
+  {
+    name: "literal-forge.ts",
+    mustFail: true,
+    code: `const _bad = "archived" as "active";
+`,
+  },
+  {
+    name: "type-literal.ts",
+    mustFail: true,
+    code: `const err: unknown = {};
+const _bad = err as { code: unknown };
+`,
+  },
+  {
+    name: "chain-unknown-cadence.ts",
+    mustFail: true,
+    code: `import type { Cadence } from "@/domain";
+const _bad = { kind: "daily" } as unknown as Cadence;
+`,
+  },
+  {
+    name: "chain-unknown-evaluate-options.ts",
+    mustFail: true,
+    code: `import type { EvaluateOptions } from "@/domain";
+const _bad = ({ horizonDays: 0 } as unknown) as EvaluateOptions;
+`,
+  },
+  {
+    name: "chain-unknown-error.ts",
+    mustFail: true,
+    code: `const raw: unknown = {};
+const _bad = (raw as unknown) as Error;
+`,
+  },
+  {
+    name: "allowlist-ok.ts",
     mustFail: false,
     code: `const _ok = { kind: "daily" } as const;
 const raw: unknown = {};
@@ -57,7 +108,7 @@ let failed = false;
 
 for (const c of cases) {
   // filePath under src/ so flat-config file globs + parser apply.
-  const filePath = join(repoRoot, "src", "engine", `__brand-lint-probe__${c.name}`);
+  const filePath = join(repoRoot, "src", "engine", `__type-assert-lint-probe__${c.name}`);
   const [result] = await eslint.lintText(c.code, { filePath });
   const restricted = (result?.messages ?? []).filter(
     (m) => m.ruleId === "no-restricted-syntax",
@@ -80,4 +131,4 @@ for (const c of cases) {
 if (failed) {
   process.exit(1);
 }
-console.log("brand-assertion lint regression: all cases matched");
+console.log("type-assertion lint regression: all cases matched");

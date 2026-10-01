@@ -46,9 +46,10 @@ const everyNDaysCadenceSchema = z
  * Branded Cadence — how often an item should be completed again after lastDone.
  * Named kinds use calendar periods in the item's zone; `every_n_days` adds a
  * fixed day count. Valid-by-construction via parseCadence / parseCadenceJson.
- * Plain literals are not assignable. ESLint forbids bare `as Cadence` and
- * object-literal assertions (except `as const`); the engine trusts branded
- * inputs and does not re-validate.
+ * Plain literals are not assignable. ESLint blanket-bans type assertions
+ * except a documented allowlist (`as const`, `as Record<…>`, `as Error`,
+ * `as unknown`; never chained). The engine trusts branded inputs and does
+ * not re-validate.
  */
 export const cadenceSchema = z
   .union([namedCadenceSchema, everyNDaysCadenceSchema])
@@ -67,8 +68,8 @@ function cadenceFailureMessage(raw: unknown, source: "cadence" | "cadence_json")
       : `cadence must be a JSON object, got ${typeof raw}`;
   }
 
-  const obj = raw as Record<string, unknown>;
-  const kind = obj.kind;
+  // `in` narrowing — no type assertion (assertion allowlist is for edges only).
+  const kind = "kind" in raw ? raw.kind : undefined;
 
   if (typeof kind !== "string") {
     return source === "cadence_json"
@@ -80,7 +81,7 @@ function cadenceFailureMessage(raw: unknown, source: "cadence" | "cadence_json")
     return "every_n_days requires positive integer days and no extra keys";
   }
 
-  if ((NAMED_KINDS as readonly string[]).includes(kind)) {
+  if (NAMED_KINDS.some((k) => k === kind)) {
     return `named cadence ${kind} must have only { kind }`;
   }
 
@@ -146,7 +147,8 @@ export function parseCadence(raw: unknown): Cadence {
 export function parseCadenceJson(json: string): Cadence {
   let raw: unknown;
   try {
-    raw = JSON.parse(json) as unknown;
+    // JSON.parse is `any`; assign into unknown without assertion.
+    raw = JSON.parse(json);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new InvalidCadenceError(`cadence_json is not valid JSON: ${message}`);

@@ -15,11 +15,49 @@ const engineDomainValueBanMessage =
 const engineDbBanMessage =
   "Do not import persistence (drizzle / libsql / @/db) under src/engine. Persistence lives outside the engine.";
 
-const brandAssertionBanMessage =
-  "Do not assert `as Cadence` / `as EvaluateOptions`. Construct via domain parseCadence / parseEvaluateOptions (valid-by-construction). Type assertions reopen the brand hole.";
+/**
+ * Ariel soundness: blanket-forbid type assertions; only documented allowlist
+ * escapes. `as unknown` is never a stepping stone — chained assertions banned.
+ *
+ * Allowlist (typeAnnotation shapes in typescript-eslint AST):
+ * - `as const` / `<const>` → TSTypeReference typeName "const"
+ * - `as unknown` / `<unknown>` → TSUnknownKeyword
+ * - `as Error` → TSTypeReference typeName "Error"
+ * - `as Record<…>` → TSTypeReference typeName "Record"
+ */
+const typeAssertionBanMessage =
+  "Type assertions (`as Type` / `<Type>`) are banned except the documented allowlist: `as const`, `as Record<…>`, `as Error`, `as unknown`. Prefer valid-by-construction parsers, `in`/instanceof narrowing, or rewrite types. See ARCHITECTURE.md.";
 
-const objectLiteralAssertionBanMessage =
-  "Do not assert an object literal with `as Type` (except `as const`). Object-literal assertions forge branded types via aliases (`as C`, `as Alias`, `as import(...).Cadence`). Construct branded values via domain parse* helpers.";
+const typeAssertionChainBanMessage =
+  "Chained type assertions (e.g. `x as unknown as Cadence`) are banned. `as unknown` is a justified untyped edge only — never a forge/stepping-stone to another type.";
+
+/** Match assertions whose typeAnnotation is NOT one of the four allowlisted forms. */
+const notAllowlistedAssertion =
+  ":not([typeAnnotation.typeName.name='const'])" +
+  ":not([typeAnnotation.type='TSUnknownKeyword'])" +
+  ":not([typeAnnotation.typeName.name='Error'])" +
+  ":not([typeAnnotation.typeName.name='Record'])";
+
+const typeAssertionRestrictedSyntax = [
+  {
+    selector: `TSAsExpression${notAllowlistedAssertion}`,
+    message: typeAssertionBanMessage,
+  },
+  {
+    selector: `TSTypeAssertion${notAllowlistedAssertion}`,
+    message: typeAssertionBanMessage,
+  },
+  {
+    selector:
+      "TSAsExpression[expression.type=/^(TSAsExpression|TSTypeAssertion)$/]",
+    message: typeAssertionChainBanMessage,
+  },
+  {
+    selector:
+      "TSTypeAssertion[expression.type=/^(TSAsExpression|TSTypeAssertion)$/]",
+    message: typeAssertionChainBanMessage,
+  },
+];
 
 /** Ban Date construction / static calls (repo-wide). */
 const dateRestrictedSyntax = [
@@ -30,39 +68,6 @@ const dateRestrictedSyntax = [
   {
     selector: "CallExpression[callee.object.name='Date']",
     message: dateBanMessage,
-  },
-];
-
-/**
- * Brand-assertion bans (repo-wide):
- * 1. Bare-name `as Cadence` / `as EvaluateOptions` (and angle-bracket form).
- * 2. Object-literal type assertions except `as const` / `<const>` —
- *    closes alias bypasses (`as C`, `as Alias`, `as import(...).Cadence`)
- *    without type-aware resolution. Legitimate non-literal casts
- *    (`value as Error`, `raw as Record<string, unknown>`, `as unknown`) stay OK.
- * `as const` is a TSTypeReference whose typeName is Identifier "const"
- * (not TSConstKeyword) in the typescript-eslint AST.
- */
-const brandAssertionRestrictedSyntax = [
-  {
-    selector:
-      "TSAsExpression[typeAnnotation.typeName.name=/^(Cadence|EvaluateOptions)$/]",
-    message: brandAssertionBanMessage,
-  },
-  {
-    selector:
-      "TSTypeAssertion[typeAnnotation.typeName.name=/^(Cadence|EvaluateOptions)$/]",
-    message: brandAssertionBanMessage,
-  },
-  {
-    selector:
-      "TSAsExpression[expression.type='ObjectExpression']:not([typeAnnotation.typeName.name='const'])",
-    message: objectLiteralAssertionBanMessage,
-  },
-  {
-    selector:
-      "TSTypeAssertion[expression.type='ObjectExpression']:not([typeAnnotation.typeName.name='const'])",
-    message: objectLiteralAssertionBanMessage,
   },
 ];
 
@@ -109,18 +114,18 @@ const eslintConfig = defineConfig([
       "no-restricted-syntax": [
         "error",
         ...dateRestrictedSyntax,
-        ...brandAssertionRestrictedSyntax,
+        ...typeAssertionRestrictedSyntax,
       ],
     },
   },
   {
     files: ["src/engine/**/*.{ts,tsx}"],
     rules: {
-      // Flat config replaces the whole rule — keep Date + brand bans + engine extras.
+      // Flat config replaces the whole rule — keep Date + assertion bans + engine extras.
       "no-restricted-syntax": [
         "error",
         ...dateRestrictedSyntax,
-        ...brandAssertionRestrictedSyntax,
+        ...typeAssertionRestrictedSyntax,
         {
           selector: "MemberExpression[object.name='Temporal'][property.name='Now']",
           message:

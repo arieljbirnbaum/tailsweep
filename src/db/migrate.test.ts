@@ -38,8 +38,9 @@ function sleepMs(ms: number): Promise<void> {
 }
 
 function errCode(err: unknown): string {
+  // `in` narrowing exposes .code — no type assertion.
   return err && typeof err === "object" && "code" in err
-    ? String((err as { code: unknown }).code)
+    ? String(err.code)
     : "";
 }
 

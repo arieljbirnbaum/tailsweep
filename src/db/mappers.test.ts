@@ -215,9 +215,11 @@ describe("strict zone / status (no silent defaults)", () => {
       },
       { createdAt: CREATED, updatedAt: UPDATED },
     );
-    expect(() => rowToCatalogItem({ ...row, status: "archived" as "active" })).toThrow(
-      /status must be active\|paused/,
-    );
+    // Intentional invalid status: @ts-expect-error avoids forging via `as`.
+    expect(() =>
+      // @ts-expect-error archived is not a CatalogItemRow status
+      rowToCatalogItem({ ...row, status: "archived" }),
+    ).toThrow(/status must be active\|paused/);
   });
 
   it("rowToCatalogItem rejects bad Instant ISO", () => {

@@ -55,7 +55,8 @@ describe("InvalidCadenceError golden messages", () => {
       parseCadence(raw);
     } catch (err) {
       expect(err).toBeInstanceOf(InvalidCadenceError);
-      expect((err as Error).message).toMatch(/\([^)]+:/);
+      if (!(err instanceof InvalidCadenceError)) throw err;
+      expect(err.message).toMatch(/\([^)]+:/);
     }
   });
 
@@ -184,10 +185,13 @@ describe("parseCatalogItem", () => {
       caught = err;
     }
     expect(caught).toBeInstanceOf(InvalidCadenceError);
-    expect((caught as Error).message).toMatch(
+    if (!(caught instanceof InvalidCadenceError)) {
+      throw caught instanceof Error ? caught : new Error(String(caught));
+    }
+    expect(caught.message).toMatch(
       /every_n_days requires positive integer days and no extra keys/,
     );
-    expect((caught as Error).message).toMatch(/days:/);
+    expect(caught.message).toMatch(/days:/);
   });
 });
 
