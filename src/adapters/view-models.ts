@@ -27,7 +27,7 @@ export type DueListItemViewModel = {
 };
 
 export function isDueListState(state: DueState): state is DueListState {
-  return (DUE_LIST_STATES as readonly string[]).includes(state);
+  return state === "due" || state === "overdue" || state === "upcoming";
 }
 
 /**

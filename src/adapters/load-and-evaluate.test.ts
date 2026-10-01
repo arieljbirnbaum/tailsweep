@@ -17,7 +17,7 @@ import {
   type Db,
 } from "@/db";
 import { closeClients, removeTempDirs } from "@/db/test-temp-db";
-import { InvalidCadenceError } from "@/domain";
+import { cadence, InvalidCadenceError } from "@/domain";
 import { fixedClock, Temporal } from "@/engine";
 
 import { DEFAULT_HORIZON_DAYS, DEFAULT_ZONE } from "./defaults";
@@ -69,7 +69,7 @@ describe("adapters loadAndEvaluate", () => {
       {
         id: "daily-yday",
         name: "Water plants",
-        cadence: { kind: "daily" as const },
+        cadence: cadence({ kind: "daily" }),
         lastDone: Temporal.Instant.from("2026-09-26T10:00:00.000Z"),
         zone: ZONE,
         status: "active" as const,
@@ -77,7 +77,7 @@ describe("adapters loadAndEvaluate", () => {
       {
         id: "daily-new",
         name: "Take trash out",
-        cadence: { kind: "daily" as const },
+        cadence: cadence({ kind: "daily" }),
         lastDone: null,
         zone: ZONE,
         status: "active" as const,
@@ -85,7 +85,7 @@ describe("adapters loadAndEvaluate", () => {
       {
         id: "weekly-upcoming",
         name: "Vacuum",
-        cadence: { kind: "weekly" as const },
+        cadence: cadence({ kind: "weekly" }),
         // lastDone 2026-09-22 → next due 2026-09-29 (within horizon 7 from 09-27)
         lastDone: Temporal.Instant.from("2026-09-22T10:00:00.000Z"),
         zone: ZONE,
@@ -94,7 +94,7 @@ describe("adapters loadAndEvaluate", () => {
       {
         id: "paused-daily",
         name: "Paused chore",
-        cadence: { kind: "daily" as const },
+        cadence: cadence({ kind: "daily" }),
         lastDone: Temporal.Instant.from("2026-09-01T10:00:00.000Z"),
         zone: ZONE,
         status: "paused" as const,
@@ -102,7 +102,7 @@ describe("adapters loadAndEvaluate", () => {
       {
         id: "beyond-horizon",
         name: "Yearly check",
-        cadence: { kind: "yearly" as const },
+        cadence: cadence({ kind: "yearly" }),
         lastDone: Temporal.Instant.from("2026-09-01T10:00:00.000Z"),
         zone: ZONE,
         status: "active" as const,
@@ -168,7 +168,7 @@ describe("adapters loadAndEvaluate", () => {
         {
           id: "one",
           name: "Solo",
-          cadence: { kind: "daily" },
+          cadence: cadence({ kind: "daily" }),
           lastDone: Temporal.Instant.from("2026-09-26T10:00:00.000Z"),
           zone: ZONE,
           status: "active",
@@ -190,7 +190,7 @@ describe("adapters loadAndEvaluate", () => {
         {
           id: "c1",
           name: "Chore",
-          cadence: { kind: "as_needed" },
+          cadence: cadence({ kind: "as_needed" }),
           lastDone: null,
           zone: DEFAULT_ZONE,
           status: "active",
@@ -215,7 +215,7 @@ describe("adapters loadAndEvaluate", () => {
           {
             id: "a",
             name: "A",
-            cadence: { kind: "daily" },
+            cadence: cadence({ kind: "daily" }),
             lastDone: null,
             zone: ZONE,
             status: "active",
@@ -231,7 +231,7 @@ describe("adapters loadAndEvaluate", () => {
           {
             id: "a",
             name: "A",
-            cadence: { kind: "daily" },
+            cadence: cadence({ kind: "daily" }),
             lastDone: null,
             zone: ZONE,
             status: "active",
@@ -243,13 +243,22 @@ describe("adapters loadAndEvaluate", () => {
   });
 
   describe("fail-loud through adapter path (bad persistence rows)", () => {
-    const badRowBase = {
+    const badRowBase: {
+      id: string;
+      name: string;
+      cadenceJson: string;
+      lastDoneAt: string | null;
+      zone: string;
+      status: "active";
+      createdAt: string;
+      updatedAt: string;
+    } = {
       id: "bad-row",
       name: "Bad row",
       cadenceJson: '{"kind":"daily"}',
-      lastDoneAt: null as string | null,
+      lastDoneAt: null,
       zone: ZONE,
-      status: "active" as const,
+      status: "active",
       createdAt: CREATED_ISO,
       updatedAt: UPDATED_ISO,
     };
