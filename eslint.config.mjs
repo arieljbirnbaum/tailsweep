@@ -16,45 +16,12 @@ const engineDbBanMessage =
   "Do not import persistence (drizzle / libsql / @/db) under src/engine. Persistence lives outside the engine.";
 
 /**
- * Ariel soundness: blanket-forbid type assertions; only documented allowlist
- * escapes. Chained assertions are always banned (no forge stepping-stones).
- *
- * Allowlist (typeAnnotation shapes in typescript-eslint AST):
- * - `as const` / `<const>` → TSTypeReference typeName "const"
- *
- * Other assertions (`as Record`, `as Error`, `as unknown`, …) are forbidden
- * until a documented scoped carve-out is added (see ARCHITECTURE.md).
+ * Ariel soundness: ban type assertions via stock
+ * `@typescript-eslint/consistent-type-assertions` with `assertionStyle: "never"`.
+ * Docs: `as const` / `<const>` are always allowed under this rule.
+ * Prefer valid-by-construction parsers, `in`/instanceof narrowing, or rewrite types.
+ * Other escapes need a scoped carve-out + ARCHITECTURE justification.
  */
-const typeAssertionBanMessage =
-  "Type assertions (`as Type` / `<Type>`) are banned except the documented allowlist: `as const` / `<const>`. Prefer valid-by-construction parsers, `in`/instanceof narrowing, or rewrite types. Other escapes need a scoped carve-out + ARCHITECTURE justification. See ARCHITECTURE.md.";
-
-const typeAssertionChainBanMessage =
-  "Chained type assertions (e.g. `x as unknown as Cadence`) are banned. Assertions must not be used as forge/stepping-stones to another type.";
-
-/** Match assertions whose typeAnnotation is NOT the allowlisted `as const` / `<const>`. */
-const notAllowlistedAssertion =
-  ":not([typeAnnotation.typeName.name='const'])";
-
-const typeAssertionRestrictedSyntax = [
-  {
-    selector: `TSAsExpression${notAllowlistedAssertion}`,
-    message: typeAssertionBanMessage,
-  },
-  {
-    selector: `TSTypeAssertion${notAllowlistedAssertion}`,
-    message: typeAssertionBanMessage,
-  },
-  {
-    selector:
-      "TSAsExpression[expression.type=/^(TSAsExpression|TSTypeAssertion)$/]",
-    message: typeAssertionChainBanMessage,
-  },
-  {
-    selector:
-      "TSTypeAssertion[expression.type=/^(TSAsExpression|TSTypeAssertion)$/]",
-    message: typeAssertionChainBanMessage,
-  },
-];
 
 /** Ban Date construction / static calls (repo-wide). */
 const dateRestrictedSyntax = [
@@ -108,21 +75,22 @@ const eslintConfig = defineConfig([
           },
         },
       ],
-      "no-restricted-syntax": [
+      // Blanket ban on type assertions; `as const` / `<const>` always allowed (stock rule).
+      // Plugin is provided by eslint-config-next (typescript-eslint package).
+      "@typescript-eslint/consistent-type-assertions": [
         "error",
-        ...dateRestrictedSyntax,
-        ...typeAssertionRestrictedSyntax,
+        { assertionStyle: "never" },
       ],
+      "no-restricted-syntax": ["error", ...dateRestrictedSyntax],
     },
   },
   {
     files: ["src/engine/**/*.{ts,tsx}"],
     rules: {
-      // Flat config replaces the whole rule — keep Date + assertion bans + engine extras.
+      // Flat config replaces the whole rule — keep Date bans + engine Temporal.Now ban.
       "no-restricted-syntax": [
         "error",
         ...dateRestrictedSyntax,
-        ...typeAssertionRestrictedSyntax,
         {
           selector: "MemberExpression[object.name='Temporal'][property.name='Now']",
           message:
