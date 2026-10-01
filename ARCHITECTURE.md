@@ -10,7 +10,9 @@ Engine before chrome. Debuggability first.
 ┌─────────────────────────────────────────┐
 │  UI  (src/app)  Next.js App Router      │  presentation only
 ├─────────────────────────────────────────┤
-│  Adapters / DB  (src/db)  Drizzle+SQLite│  persist facts; parse at boundary
+│  Adapters  (src/adapters)               │  load → evaluate → view models; UX defaults
+├─────────────────────────────────────────┤
+│  DB  (src/db)  Drizzle+SQLite           │  persist facts; parse at boundary
 ├─────────────────────────────────────────┤
 │  Engine  (src/engine)  PURE TypeScript  │  due math; imports domain typedefs
 ├─────────────────────────────────────────┤
@@ -20,12 +22,23 @@ Engine before chrome. Debuggability first.
 
 Dependencies point **inward only**:
 
-- `src/app` may import `@/engine`, `@/db`, and `@/domain`
-- `src/db` may import `@/domain` (parsers) and `@/engine` (evaluate at edges) — **never** the other way from engine/domain into db
-- `src/engine` may import **types** from `@/domain` (type-only) and shared errors from `@/domain/errors` (thin, no Zod) — must **never** value-import the fat `@/domain` barrel, nor import Next, React, Drizzle, Zod for runtime parse on evaluate*, `fs`, `fetch`, Node I/O, or anything under `src/app` / `src/db`
+- `src/app` may import `@/adapters`, `@/engine`, `@/db`, `@/domain`, and `@/time`
+- `src/adapters` may import `@/db`, `@/engine`, `@/domain`, and `@/time` — owns dogfood defaults (`DEFAULT_HORIZON_DAYS`, `DEFAULT_ZONE`); never puts defaults into the engine
+- `src/db` may import `@/domain` (parsers) — **never** the other way from engine/domain into db; no due math in db
+- `src/engine` may import **types** from `@/domain` (type-only) and shared errors from `@/domain/errors` (thin, no Zod) — must **never** value-import the fat `@/domain` barrel, nor import Next, React, Drizzle, Zod for runtime parse on evaluate*, `fs`, `fetch`, Node I/O, or anything under `src/app` / `src/adapters` / `src/db`
 - `src/domain` must **never** import engine evaluate logic, Drizzle, Next, or React
 
 **Domain owns** Zod schemas + **branded / valid-by-construction** types (`Cadence`, `EvaluateOptions`, `CatalogItem`, Instant ISO helpers, zone/status). **Engine** stays pure functional due math and may depend on domain for typedefs only — do **not** run Zod on every `evaluate*` call. **In-app construction** uses typed domain factories (`cadence`, `evaluateOptions`, …). **`parse*`** is for unknown / JSON deserialization boundaries only. Adapters/persistence call `cadence` / `evaluateOptions` / parse* at the edge (fail-loud; no permissive coercions). Invariants live at construction; the engine trusts opaque branded inputs.
+
+### Adapters (`src/adapters`)
+
+Thin app edge outside the engine:
+
+- `loadCatalog` / `loadCompletions` — persistence → domain types via `@/db` mappers
+- `loadAndEvaluate(db, { clock, horizonDays? })` — one clear call path: load → `evaluateCatalog` with injectable `Clock` and branded `EvaluateOptions` via `evaluateOptions({ horizonDays })` (when `horizonDays` is omitted, adapters apply `DEFAULT_HORIZON_DAYS` explicitly; the engine never sees an undefined horizon)
+- View models (`DueListItemViewModel`) — `id`, `name`, `state`, `nextDue: Temporal.Instant | null` for the today/due list (UI formats Instant later)
+
+Convenience defaults (**horizon**, **default zone for UX**) live **only** here — never silent engine defaults.
 
 If you need “today” inside the engine, take a `Temporal.Instant` argument or an injectable `Clock`. Do **not** call `Temporal.Now` anywhere under `src/engine` (ESLint error). Production clock lives at `src/time/system-clock.ts` (or inline `{ now: () => Temporal.Now.instant() }` at the adapter edge).
 
@@ -134,7 +147,7 @@ Persistence lives **outside** `src/engine`. The engine stays pure (no Drizzle / 
 - `rowToCatalogItem` / `catalogItemToRow` — `CatalogItemRow` ↔ `CatalogItem` via domain parsers
 - `rowToCompletion` / `completionToRow` — completion facts ↔ domain
 - Cadence JSON / Instant ISO / zone checks live in `@/domain` (mappers delegate)
-- Convenience defaults (e.g. dogfood zone, horizon) belong in UX/adapters, **not** here or in the engine.
+- Convenience defaults (e.g. dogfood zone, horizon) belong in `src/adapters` (`DEFAULT_ZONE`, `DEFAULT_HORIZON_DAYS`), **not** here or in the engine.
 
 ### Migrations
 
@@ -166,4 +179,5 @@ Persistence lives **outside** `src/engine`. The engine stays pure (no Drizzle / 
 - [ ] Times are `Temporal.Instant`; every `CatalogItem` has required `zone`; every evaluate\* call passes `horizonDays`.
 - [ ] Lint enforces **no `Date`** (repo-wide), stock **`@typescript-eslint/consistent-type-assertions`** with `assertionStyle: "never"` (const assertions always allowed; other assertions / chains need scoped carve-out + ARCHITECTURE note), **no `Temporal.Now`**, **no `zod`**, and **no value `@/domain` barrel** under `src/engine/**` (`@/domain/errors` + type-only `@/domain` allowed); production clock stays outside the engine (`src/time/system-clock.ts`).
 - [ ] No due math added to `src/db`.
+- [ ] Adapter defaults (`DEFAULT_HORIZON_DAYS`, `DEFAULT_ZONE`) stay in `src/adapters`; engine evaluate* still requires `horizonDays` with no default.
 - [ ] README / ARCHITECTURE updated if the contract changed.

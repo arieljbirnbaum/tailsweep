@@ -4,7 +4,7 @@
  * enforced by ESLint — see eslint.config.mjs `src/engine/**` block.
  */
 
-import { mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -22,6 +22,7 @@ import {
   rowToCompletion,
 } from "./mappers";
 import { applyMigrations } from "./migrate";
+import { closeClients, removeTempDirs } from "./test-temp-db";
 
 const MIGRATIONS_FOLDER = path.join(process.cwd(), "drizzle");
 
@@ -30,101 +31,13 @@ const UPDATED = Temporal.Instant.from("2026-09-15T12:00:00.000Z");
 const LAST_DONE = Temporal.Instant.from("2026-09-20T10:00:00.000Z");
 const COMPLETED_AT = Temporal.Instant.from("2026-09-20T10:05:00.000Z");
 
-const RM_MAX_ATTEMPTS = 8;
-const RM_BASE_DELAY_MS = 50;
-
-function sleepMs(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function errCode(err: unknown): string {
-  // `in` narrowing exposes .code — no type assertion.
-  return err && typeof err === "object" && "code" in err
-    ? String(err.code)
-    : "";
-}
-
-/**
- * Close libsql clients first so Windows can delete the locked DB files.
- * @libsql/client@0.18 Client.close() is sync (`void`); still await if a
- * Promise is returned so future/async close implementations stay correct.
- */
-async function closeClients(clients: Db[]): Promise<void> {
-  for (const db of clients.splice(0)) {
-    try {
-      await Promise.resolve(db.$client.close());
-    } catch {
-      // already closed / disposed
-    }
-  }
-}
-
-/** Best-effort: drop SQLite main + WAL/SHM files before rmdir (Windows). */
-function tryUnlinkSqliteFiles(dir: string): void {
-  let entries: string[];
-  try {
-    entries = readdirSync(dir);
-  } catch {
-    return;
-  }
-  for (const name of entries) {
-    if (
-      name.endsWith(".db") ||
-      name.endsWith(".db-wal") ||
-      name.endsWith(".db-shm") ||
-      name.endsWith("-wal") ||
-      name.endsWith("-shm")
-    ) {
-      try {
-        unlinkSync(path.join(dir, name));
-      } catch {
-        // recursive rm will retry; ignore here
-      }
-    }
-  }
-}
-
-async function removeTempDirs(dirs: string[]): Promise<void> {
-  for (const dir of dirs.splice(0)) {
-    tryUnlinkSqliteFiles(dir);
-
-    let lastErr: unknown;
-    for (let attempt = 1; attempt <= RM_MAX_ATTEMPTS; attempt++) {
-      try {
-        rmSync(dir, { recursive: true, force: true });
-        lastErr = undefined;
-        break;
-      } catch (err) {
-        lastErr = err;
-        const code = errCode(err);
-        if (code !== "EPERM" && code !== "EBUSY") {
-          throw err;
-        }
-        if (attempt < RM_MAX_ATTEMPTS) {
-          // Backoff ~50–100ms+ between retries (Windows file-lock linger).
-          const delay = RM_BASE_DELAY_MS + Math.min(attempt - 1, 5) * 10;
-          await sleepMs(delay);
-          tryUnlinkSqliteFiles(dir);
-        }
-      }
-    }
-
-    if (lastErr) {
-      // Leftover temp dirs are acceptable; assertions under test already passed.
-      console.warn(
-        `[migrate.test] left temp dir after close+retries (${errCode(lastErr)}): ${dir}`,
-      );
-    }
-  }
-}
-
 describe("db migrate + insert/select", () => {
   const tempDirs: string[] = [];
   const openDbs: Db[] = [];
 
   afterEach(async () => {
     await closeClients(openDbs);
-    await removeTempDirs(tempDirs);
+    await removeTempDirs(tempDirs, "migrate.test");
   });
 
   it("applies migrations on a clean temp db and round-trips rows", async () => {
