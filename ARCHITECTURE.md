@@ -10,7 +10,7 @@ Engine before chrome. Debuggability first.
 ┌─────────────────────────────────────────┐
 │  UI  (src/app)  Next.js App Router      │  presentation only
 ├─────────────────────────────────────────┤
-│  Adapters  (src/adapters)               │  load → evaluate → view models; UX defaults
+│  Adapters  (src/adapters)               │  load → evaluate → view models; markDone writes; UX defaults
 ├─────────────────────────────────────────┤
 │  DB  (src/db)  Drizzle+SQLite           │  persist facts; parse at boundary
 ├─────────────────────────────────────────┤
@@ -37,8 +37,22 @@ Thin app edge outside the engine:
 - `loadCatalog` / `loadCompletions` — persistence → domain types via `@/db` mappers
 - `loadAndEvaluate(db, { clock, horizonDays? })` — one clear call path: load → `evaluateCatalog` with injectable `Clock` and branded `EvaluateOptions` via `evaluateOptions({ horizonDays })` (when `horizonDays` is omitted, adapters apply `DEFAULT_HORIZON_DAYS` explicitly; the engine never sees an undefined horizon)
 - View models (`DueListItemViewModel`) — `id`, `name`, `state`, `nextDue: Temporal.Instant | null` for the today/due list (UI formats Instant later)
+- `markDone` — persistence mutation (below). Not due math; the engine does not gain this function.
 
 Convenience defaults (**horizon**, **default zone for UX**) live **only** here — never silent engine defaults.
+
+#### `markDone`
+
+`markDone(db, { itemId, completedAt, completionId, note? })` appends one completion-log row and sets catalog `lastDone` in **one DB transaction**.
+
+- `completedAt` is a required `Temporal.Instant`. No clock default and no `Temporal.Now` inside the mutation. No `string | Instant` overload and no parse-and-coerce helper. A bad ISO string fails at `Temporal.Instant.from` at the edge (`TypeError` / `RangeError`) **before** `markDone`, same Instant policy as the rest of the app.
+- `completionId` is required and caller-supplied (deterministic). No random UUID inside the mutation.
+- `note` omitted or `null` is stored as SQL `NULL`. No default note.
+- Missing catalog item throws `CatalogItemNotFoundError` (defined in `src/adapters`, not `src/engine`). The transaction does not insert a completion and does not change `lastDone`.
+- `lastDone` becomes exactly `completedAt` (`Instant.equals`). The write does **not** clamp, reject, or reorder when `completedAt` is before the previous `lastDone` — that product rule is not this wire; the fact is recorded as given.
+- Paused items are not special-cased. A paused item can still get a completion row and a new `lastDone`. `evaluate*` already returns `not_applicable` while paused.
+- `created_at` / `updated_at` are left unchanged (there is no clock inside the mutation; `completedAt` is not reused as a row-touch timestamp).
+- After `markDone`, `loadAndEvaluate` with the same injectable clock sees the new cadence anchor. The engine stays pure (no mutation, Zod, or I/O).
 
 If you need “today” inside the engine, take a `Temporal.Instant` argument or an injectable `Clock`. Do **not** call `Temporal.Now` anywhere under `src/engine` (ESLint error). Production clock lives at `src/time/system-clock.ts` (or inline `{ now: () => Temporal.Now.instant() }` at the adapter edge).
 
@@ -108,7 +122,7 @@ Cadence increments (from lastDone’s local civil date in `item.zone`):
 ## Debuggability
 
 - **Injectable clock** — no `Temporal.Now` / system time in `src/engine` (lint-enforced); production clock at `src/time/system-clock.ts`.
-- **Typed errors** — `InvalidCadenceError` (code on `.code`; domain + engine re-export) wraps Zod-formatted shape errors or JSON `SyntaxError`. `RangeError` for invalid `horizonDays` (domain `evaluateOptions` / `parseEvaluateOptions`) wraps Zod formatting. Temporal construction errors surface as-is. `NotImplementedError` is exported but unused by evaluate*.
+- **Typed errors** — `InvalidCadenceError` (code on `.code`; domain + engine re-export) wraps Zod-formatted shape errors or JSON `SyntaxError`. `RangeError` for invalid `horizonDays` (domain `evaluateOptions` / `parseEvaluateOptions`) wraps Zod formatting. Temporal construction errors surface as-is. `NotImplementedError` is exported but unused by evaluate*. `CatalogItemNotFoundError` (adapters, not engine) is thrown by `markDone` when the catalog id is missing.
 - **Table-driven tests** — one row per behavior; failures name the case. SOD proof is `wantNextDue.equals` only. Construction tests lock “invalid Cadence / EvaluateOptions cannot be built via public `cadence` / `evaluateOptions` / parse* API.” Prefer domain factories in engine tests.
 - **No silent Instant / option coercion** — bad Instant strings throw from Temporal; bad `horizonDays` / `every_n_days.days` throw at domain construction; adapters validate CatalogItem at the edge.
 
@@ -160,7 +174,7 @@ Persistence lives **outside** `src/engine`. The engine stays pure (no Drizzle / 
 ### What stays out of the DB layer
 
 - Due math / `evaluateItem` / `DueState`
-- Mark-done API / UI (later tickets)
+- Mark-done product rules (what “done” means). The write is `markDone` in `src/adapters` (one transaction: completion row + `last_done_at`), not an engine function and not due math in `src/db`.
 - Seed data beyond what tests need
 
 ## Naming conventions
