@@ -22,7 +22,7 @@ Engine before chrome. Debuggability first.
 
 Dependencies point **inward only**:
 
-- `src/app` may import `@/adapters`, `@/engine`, `@/db`, `@/domain`, and `@/time`
+- `src/app` may import `@/adapters`, `@/engine`, `@/db`, `@/domain`, and `@/time` — server actions mint ids; the page renders adapter view models
 - `src/adapters` may import `@/db`, `@/engine`, `@/domain`, and `@/time` — owns dogfood defaults (`DEFAULT_HORIZON_DAYS`, `DEFAULT_ZONE`); never puts defaults into the engine
 - `src/db` may import `@/domain` (parsers) — **never** the other way from engine/domain into db; no due math in db
 - `src/engine` may import **types** from `@/domain` (type-only) and shared errors from `@/domain/errors` (thin, no Zod) — must **never** value-import the fat `@/domain` barrel, nor import Next, React, Drizzle, Zod for runtime parse on evaluate*, `fs`, `fetch`, Node I/O, or anything under `src/app` / `src/adapters` / `src/db`
@@ -54,19 +54,29 @@ Convenience defaults (**horizon**, **default zone for UX**) live **only** here �
 - `created_at` / `updated_at` are left unchanged (there is no clock inside the mutation; `completedAt` is not reused as a row-touch timestamp).
 - After `markDone`, `loadAndEvaluate` with the same injectable clock sees the new cadence anchor. The engine stays pure (no mutation, Zod, or I/O).
 
+#### Hand-enter (`insertCatalogItem`)
+
+`insertCatalogItem(db, { id, name, cadenceKind, zone, at })` inserts one active catalog row with `lastDone` null. The caller supplies `id` and `at` (both `created_at` and `updated_at`). Named cadence and zone fail loud via domain parsers (`parseCatalogItem` → `parseCadence` / `parseZone`). No due math and no id minting.
+
+#### App command edge
+
+The Next server actions supply ids; persistence and the engine do not.
+
+The mark-done action uses `systemClock.now()` as `completedAt`, mints one `completionId` with `crypto.randomUUID()`, calls `markDone`, then `revalidatePath("/")`. Hand-enter mints the catalog item id the same way and passes `systemClock.now()` as `at`. The today page renders `loadAndEvaluate`’s `dueList` (no second cadence calculation). It formats each `nextDue` Instant as a civil `YYYY-MM-DD` in the catalog item’s zone (joined by id; a due-list id missing from the catalog fails loud). On first use the app opens the singleton DB and runs `applyMigrations`.
+
 If you need “today” inside the engine, take a `Temporal.Instant` argument or an injectable `Clock`. Do **not** call `Temporal.Now` anywhere under `src/engine` (ESLint error). Production clock lives at `src/time/system-clock.ts` (or inline `{ now: () => Temporal.Now.instant() }` at the adapter edge).
 
 ## Due-engine contract (`src/engine`)
 
 ### Types
 
-| Concept           | Notes                                                                                                                                           |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Cadence`         | Branded opaque: named kinds + `every_n_days` (positive int). Prefer `cadence` (typed); `parseCadence` / `parseCadenceJson` after deserialization. |
-| `CatalogItem`     | `id`, `name`, `cadence`, `lastDone: Temporal.Instant \| null`, required `zone` (IANA id), `status: active\|paused`                              |
-| `DueState`        | `due` \| `overdue` \| `upcoming` \| `not_applicable`                                                                                            |
+| Concept           | Notes                                                                                                                                               |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Cadence`         | Branded opaque: named kinds + `every_n_days` (positive int). Prefer `cadence` (typed); `parseCadence` / `parseCadenceJson` after deserialization.   |
+| `CatalogItem`     | `id`, `name`, `cadence`, `lastDone: Temporal.Instant \| null`, required `zone` (IANA id), `status: active\|paused`                                  |
+| `DueState`        | `due` \| `overdue` \| `upcoming` \| `not_applicable`                                                                                                |
 | `EvaluateOptions` | Branded opaque: required `horizonDays` ≥ 1. Prefer `evaluateOptions` (typed); `parseEvaluateOptions` for unknown. No engine default; no `timeZone`. |
-| `Clock`           | `{ now(): Temporal.Instant }` — inject at edges; `fixedClock` in tests; production `systemClock` at `src/time/system-clock.ts` (outside engine) |
+| `Clock`           | `{ now(): Temporal.Instant }` — inject at edges; `fixedClock` in tests; production `systemClock` at `src/time/system-clock.ts` (outside engine)     |
 
 ### Functions
 
