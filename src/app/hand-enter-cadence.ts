@@ -9,7 +9,7 @@
 
 import type { CadenceInput, CadenceKind } from "@/domain";
 
-/** Argument fields of one cadence kind (named kinds: none). */
+/** Argument fields of one cadence kind (no-argument kinds: none). */
 export type CadenceArgsOf<K extends CadenceKind> = Omit<
   Extract<CadenceInput, { kind: K }>,
   "kind"

@@ -32,7 +32,7 @@ describe("parseStrictPositiveIntDecimal", () => {
 });
 
 describe("cadenceFromForm", () => {
-  it("builds named and every_n_days cadences", () => {
+  it("builds no-argument and every_n_days cadences", () => {
     expect(cadenceFromForm("weekly", null)).toMatchObject({ kind: "weekly" });
     expect(cadenceFromForm("every_n_days", "14")).toMatchObject({
       kind: "every_n_days",
@@ -61,7 +61,7 @@ describe("cadenceFromForm", () => {
     );
   });
 
-  it("fails loud on named kind + days and unknown kind", () => {
+  it("fails loud on no-argument kind + days and unknown kind", () => {
     expect(() => cadenceFromForm("weekly", "14")).toThrow(InvalidCadenceError);
     expect(() => cadenceFromForm("not_a_kind", null)).toThrow(
       InvalidCadenceError,

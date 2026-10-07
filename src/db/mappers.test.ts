@@ -170,7 +170,7 @@ describe("parseCadenceJson (strict)", () => {
     { name: "null", json: "null" },
     { name: "missing kind", json: "{}" },
     { name: "unknown kind", json: '{"kind":"hourly"}' },
-    { name: "named with extra key", json: '{"kind":"daily","days":1}' },
+    { name: "no-argument kind with extra key", json: '{"kind":"daily","days":1}' },
     { name: "every_n_days without days", json: '{"kind":"every_n_days"}' },
     {
       name: "every_n_days zero days",

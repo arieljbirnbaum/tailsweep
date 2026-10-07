@@ -10,7 +10,6 @@ export { Temporal } from "./temporal";
 
 export type {
   Cadence,
-  NamedCadenceKind,
   CatalogItem,
   CatalogItemStatus,
   DueState,

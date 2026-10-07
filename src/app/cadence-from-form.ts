@@ -3,7 +3,7 @@
  *
  * Days must be a strict decimal positive integer string (no spaces, no
  * scientific / hex Number() coercions). Shape / positivity still go through
- * parseCadence so named+days and other forgeries fail the same way as domain.
+ * parseCadence so no-argument kind + days and other forgeries fail the same way as domain.
  */
 
 import {
@@ -25,7 +25,7 @@ export function parseStrictPositiveIntDecimal(raw: string): number | null {
 
 /**
  * @throws {InvalidCadenceError} on missing/lax days, unknown kind, or
- *   named kind + days (via parseCadence .strict()).
+ *   no-argument kind + days (via parseCadence .strict()).
  */
 export function cadenceFromForm(
   cadenceKind: string,
@@ -47,7 +47,7 @@ export function cadenceFromForm(
   }
 
   if (daysRaw !== null && daysRaw.length > 0) {
-    // Extra key on a named cadence — domain .strict() rejects.
+    // Extra key on a no-argument cadence — domain .strict() rejects.
     return parseCadence({ kind: cadenceKind, days: daysRaw });
   }
 

@@ -56,7 +56,7 @@ Convenience defaults (**horizon**, **default zone for UX**) live **only** here �
 
 #### Hand-enter (`insertCatalogItem`)
 
-`insertCatalogItem(db, { id, name, cadenceKind, zone, at })` inserts one active catalog row with `lastDone` null. The caller supplies `id` and `at` (both `created_at` and `updated_at`). Named cadence and zone fail loud via domain parsers (`parseCatalogItem` → `parseCadence` / `parseZone`). No due math and no id minting.
+`insertCatalogItem(db, { id, name, cadence, zone, at })` inserts one active catalog row with `lastDone` null. The caller supplies `id` and `at` (both `created_at` and `updated_at`). Cadence (branded) and zone fail loud via domain parsers (`parseCatalogItem` → `parseCadence` / `parseZone`). No due math and no id minting.
 
 #### App command edge
 
@@ -72,7 +72,7 @@ If you need “today” inside the engine, take a `Temporal.Instant` argument or
 
 | Concept           | Notes                                                                                                                                               |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Cadence`         | Branded opaque: named kinds + `every_n_days` (positive int). Prefer `cadence` (typed); `parseCadence` / `parseCadenceJson` after deserialization.   |
+| `Cadence`         | Branded opaque: no-argument kinds + `every_n_days` (positive int). Prefer `cadence` (typed); `parseCadence` / `parseCadenceJson` after deserialization.   |
 | `CatalogItem`     | `id`, `name`, `cadence`, `lastDone: Temporal.Instant \| null`, required `zone` (IANA id), `status: active\|paused`                                  |
 | `DueState`        | `due` \| `overdue` \| `upcoming` \| `not_applicable`                                                                                                |
 | `EvaluateOptions` | Branded opaque: required `horizonDays` ≥ 1. Prefer `evaluateOptions` (typed); `parseEvaluateOptions` for unknown. No engine default; no `timeZone`. |

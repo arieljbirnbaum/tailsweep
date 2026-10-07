@@ -57,7 +57,7 @@ function EveryNDaysArgs({ defaultDays }: { defaultDays: number }) {
 
 /**
  * Per-kind argument inputs, keyed on the domain kind union: a new domain kind
- * fails typecheck until it has an entry here. Named kinds have no inputs.
+ * fails typecheck until it has an entry here. No-argument kinds render no inputs.
  */
 const CADENCE_ARGS_INPUTS: {
   readonly [K in CadenceKind]: (defaults: CadenceFormDefaults[K]) => ReactNode;

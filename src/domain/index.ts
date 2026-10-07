@@ -21,7 +21,6 @@ export {
   serializeCadence,
 } from "./cadence";
 export type {
-  NamedCadenceKind,
   CadenceKind,
   Cadence,
   CadenceInput,
