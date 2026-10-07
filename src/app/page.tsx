@@ -5,7 +5,7 @@ import { systemClock } from "@/time/system-clock";
 import { formatCivilDate } from "./civil-date";
 import { getAppDb } from "./db";
 import { HandEnterForm, MarkDoneForm } from "./forms";
-import { HAND_ENTER_CADENCE_OPTIONS } from "./hand-enter-cadence";
+import { HAND_ENTER_CADENCE_DEFAULTS } from "./hand-enter-cadence";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +59,7 @@ export default async function Home() {
 
       <HandEnterForm
         defaultZone={DEFAULT_ZONE}
-        cadenceOptions={HAND_ENTER_CADENCE_OPTIONS}
+        cadenceDefaults={HAND_ENTER_CADENCE_DEFAULTS}
       />
     </main>
   );

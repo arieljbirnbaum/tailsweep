@@ -1,13 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, type ReactNode } from "react";
+
+import { CADENCE_KINDS, type CadenceKind } from "@/domain";
 
 import { createCatalogItemAction, markDoneAction } from "./actions";
-import {
-  cadenceFormOption,
-  type CadenceFormOption,
-  type EveryNDaysCadenceFormOption,
-} from "./hand-enter-cadence";
+import type { CadenceFormDefaults } from "./hand-enter-cadence";
 
 const fieldClass =
   "mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50";
@@ -40,7 +38,7 @@ export function MarkDoneForm({ itemId }: { itemId: string }) {
   );
 }
 
-function EveryNDaysArgs({ option }: { option: EveryNDaysCadenceFormOption }) {
+function EveryNDaysArgs({ defaultDays }: { defaultDays: number }) {
   return (
     <label className="text-sm">
       Days
@@ -50,37 +48,55 @@ function EveryNDaysArgs({ option }: { option: EveryNDaysCadenceFormOption }) {
         required
         min={1}
         step={1}
-        defaultValue={option.defaultDays}
+        defaultValue={defaultDays}
         className={fieldClass}
       />
     </label>
   );
 }
 
-/** Per-kind argument fields. Named kinds have none. */
-function CadenceArgs({ option }: { option: CadenceFormOption }) {
-  switch (option.kind) {
-    case "every_n_days":
-      return <EveryNDaysArgs option={option} />;
-    default:
-      return null;
+/**
+ * Per-kind argument inputs, keyed on the domain kind union: a new domain kind
+ * fails typecheck until it has an entry here. Named kinds have no inputs.
+ */
+const CADENCE_ARGS_INPUTS: {
+  readonly [K in CadenceKind]: (defaults: CadenceFormDefaults[K]) => ReactNode;
+} = {
+  daily: () => null,
+  weekly: () => null,
+  monthly: () => null,
+  quarterly: () => null,
+  yearly: () => null,
+  as_needed: () => null,
+  every_n_days: (defaults) => <EveryNDaysArgs defaultDays={defaults.days} />,
+};
+
+function renderCadenceArgs<K extends CadenceKind>(
+  kind: K,
+  defaults: CadenceFormDefaults,
+): ReactNode {
+  const render: (d: CadenceFormDefaults[K]) => ReactNode = CADENCE_ARGS_INPUTS[kind];
+  return render(defaults[kind]);
+}
+
+function toCadenceKind(raw: string): CadenceKind {
+  const kind = CADENCE_KINDS.find((k) => k === raw);
+  if (kind === undefined) {
+    throw new Error(`Unknown cadence kind from <select>: ${raw}`);
   }
+  return kind;
 }
 
 export function HandEnterForm({
   defaultZone,
-  cadenceOptions,
+  cadenceDefaults,
 }: {
   defaultZone: string;
-  /** Non-empty; the page supplies the config. The form does not invent a kind. */
-  cadenceOptions: readonly [CadenceFormOption, ...CadenceFormOption[]];
+  /** Per-kind argument defaults; the page supplies the config. */
+  cadenceDefaults: CadenceFormDefaults;
 }) {
   const [error, formAction, pending] = useActionState(createCatalogItemAction, null);
-  const [cadenceKind, setCadenceKind] = useState(cadenceOptions[0].kind);
-  const selected = cadenceFormOption(cadenceOptions, cadenceKind);
-  if (selected === undefined) {
-    throw new Error(`Selected cadence kind is not in cadenceOptions: ${cadenceKind}`);
-  }
+  const [cadenceKind, setCadenceKind] = useState<CadenceKind>(CADENCE_KINDS[0]);
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
@@ -95,19 +111,18 @@ export function HandEnterForm({
           name="cadenceKind"
           value={cadenceKind}
           onChange={(event) => {
-            const next = cadenceFormOption(cadenceOptions, event.target.value);
-            if (next) setCadenceKind(next.kind);
+            setCadenceKind(toCadenceKind(event.target.value));
           }}
           className={selectClass}
         >
-          {cadenceOptions.map((option) => (
-            <option key={option.kind} value={option.kind}>
-              {option.kind}
+          {CADENCE_KINDS.map((kind) => (
+            <option key={kind} value={kind}>
+              {kind}
             </option>
           ))}
         </select>
       </label>
-      <CadenceArgs option={selected} />
+      {renderCadenceArgs(cadenceKind, cadenceDefaults)}
       <label className="text-sm">
         Zone
         <input

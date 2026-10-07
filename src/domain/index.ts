@@ -14,6 +14,7 @@ export { InvalidCadenceError } from "./errors";
 
 export {
   namedCadenceKindSchema,
+  CADENCE_KINDS,
   cadenceSchema,
   cadence,
   parseCadence,
@@ -22,6 +23,7 @@ export {
 } from "./cadence";
 export type {
   NamedCadenceKind,
+  CadenceKind,
   Cadence,
   CadenceInput,
 } from "./cadence";

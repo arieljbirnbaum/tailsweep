@@ -1,46 +1,31 @@
 /**
- * Hand-enter cadence options for the dogfood UI.
+ * Hand-enter cadence config for the dogfood UI: per-kind argument defaults.
  *
- * The form renders whatever is listed here. It does not invent missing kinds
- * or hard-code argument defaults — those live on each option.
+ * Keyed on the domain `CadenceKind` union, and each entry's shape is derived
+ * from the domain `CadenceInput` variant for that kind. Omitting a kind, or
+ * giving a kind an argument the domain doesn't define, fails typecheck.
+ * The form renders `CADENCE_KINDS` (domain) — it cannot drop or invent kinds.
  */
 
-import type { NamedCadenceKind } from "@/domain";
+import type { CadenceInput, CadenceKind } from "@/domain";
 
-export type NamedCadenceFormOption = {
-  readonly kind: NamedCadenceKind;
+/** Argument fields of one cadence kind (named kinds: none). */
+export type CadenceArgsOf<K extends CadenceKind> = Omit<
+  Extract<CadenceInput, { kind: K }>,
+  "kind"
+>;
+
+export type CadenceFormDefaults = {
+  readonly [K in CadenceKind]: CadenceArgsOf<K>;
 };
 
-export type EveryNDaysCadenceFormOption = {
-  readonly kind: "every_n_days";
-  /** Prefill for the Days field (e.g. 14 = every two weeks). */
-  readonly defaultDays: number;
+export const HAND_ENTER_CADENCE_DEFAULTS: CadenceFormDefaults = {
+  daily: {},
+  weekly: {},
+  monthly: {},
+  quarterly: {},
+  yearly: {},
+  as_needed: {},
+  /** 14 = every two weeks. */
+  every_n_days: { days: 14 },
 };
-
-export type CadenceFormOption =
-  | NamedCadenceFormOption
-  | EveryNDaysCadenceFormOption;
-
-/** Full set offered by the hand-enter form, including every_n_days. */
-export const HAND_ENTER_CADENCE_OPTIONS: readonly [
-  CadenceFormOption,
-  ...CadenceFormOption[],
-] = [
-  { kind: "daily" },
-  { kind: "weekly" },
-  { kind: "monthly" },
-  { kind: "quarterly" },
-  { kind: "yearly" },
-  { kind: "as_needed" },
-  { kind: "every_n_days", defaultDays: 14 },
-];
-
-export function cadenceFormOption(
-  options: readonly CadenceFormOption[],
-  kind: string,
-): CadenceFormOption | undefined {
-  for (const option of options) {
-    if (option.kind === kind) return option;
-  }
-  return undefined;
-}
