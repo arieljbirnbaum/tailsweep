@@ -147,6 +147,17 @@ describe("insertCatalogItem", () => {
 
     await expect(
       insertCatalogItem(db, {
+        id: "named-with-days",
+        name: "Nope",
+        cadenceKind: "weekly",
+        days: 14,
+        zone: ZONE,
+        at: CREATED,
+      }),
+    ).rejects.toBeInstanceOf(InvalidCadenceError);
+
+    await expect(
+      insertCatalogItem(db, {
         id: "bad-zone",
         name: "Nope",
         cadenceKind: "weekly",
