@@ -5,7 +5,7 @@
  * or hard-code argument defaults — those live on each option.
  */
 
-import { namedCadenceKindSchema, type NamedCadenceKind } from "@/domain";
+import type { NamedCadenceKind } from "@/domain";
 
 export type NamedCadenceFormOption = {
   readonly kind: NamedCadenceKind;
@@ -21,12 +21,17 @@ export type CadenceFormOption =
   | NamedCadenceFormOption
   | EveryNDaysCadenceFormOption;
 
-const NAMED_OPTIONS: readonly NamedCadenceFormOption[] =
-  namedCadenceKindSchema.options.map((kind) => ({ kind }));
-
 /** Full set offered by the hand-enter form, including every_n_days. */
-export const HAND_ENTER_CADENCE_OPTIONS: readonly CadenceFormOption[] = [
-  ...NAMED_OPTIONS,
+export const HAND_ENTER_CADENCE_OPTIONS: readonly [
+  CadenceFormOption,
+  ...CadenceFormOption[],
+] = [
+  { kind: "daily" },
+  { kind: "weekly" },
+  { kind: "monthly" },
+  { kind: "quarterly" },
+  { kind: "yearly" },
+  { kind: "as_needed" },
   { kind: "every_n_days", defaultDays: 14 },
 ];
 

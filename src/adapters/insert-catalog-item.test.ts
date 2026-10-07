@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { applyMigrations, catalogItems, createDb, type Db } from "@/db";
 import { closeClients, removeTempDirs } from "@/db/test-temp-db";
-import { InvalidCadenceError } from "@/domain";
+import { cadence } from "@/domain";
 import { fixedClock, Temporal } from "@/engine";
 
 import { insertCatalogItem } from "./insert-catalog-item";
@@ -63,7 +63,7 @@ describe("insertCatalogItem", () => {
     await insertCatalogItem(db, {
       id: "plants",
       name: "Water plants",
-      cadence: { kind: "daily" },
+      cadence: cadence({ kind: "daily" }),
       zone: ZONE,
       at: CREATED,
     });
@@ -109,7 +109,7 @@ describe("insertCatalogItem", () => {
     await insertCatalogItem(db, {
       id: "trash",
       name: "Take out trash",
-      cadence: { kind: "every_n_days", days: 14 },
+      cadence: cadence({ kind: "every_n_days", days: 14 }),
       zone: ZONE,
       at: CREATED,
     });
@@ -119,24 +119,14 @@ describe("insertCatalogItem", () => {
     expect(catalog[0]!.cadence).toMatchObject({ kind: "every_n_days", days: 14 });
   });
 
-  it("fails loud on bad cadence or zone and does not insert", async () => {
+  it("fails loud on bad zone and does not insert", async () => {
     const db = await openTempDb();
-
-    await expect(
-      insertCatalogItem(db, {
-        id: "bad-days",
-        name: "Nope",
-        cadence: { kind: "every_n_days", days: 0 },
-        zone: ZONE,
-        at: CREATED,
-      }),
-    ).rejects.toBeInstanceOf(InvalidCadenceError);
 
     await expect(
       insertCatalogItem(db, {
         id: "bad-zone",
         name: "Nope",
-        cadence: { kind: "weekly" },
+        cadence: cadence({ kind: "weekly" }),
         zone: "Not/AZone",
         at: CREATED,
       }),

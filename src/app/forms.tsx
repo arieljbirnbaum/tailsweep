@@ -72,13 +72,15 @@ export function HandEnterForm({
   cadenceOptions,
 }: {
   defaultZone: string;
-  cadenceOptions: readonly CadenceFormOption[];
+  /** Non-empty; the page supplies the config. The form does not invent a kind. */
+  cadenceOptions: readonly [CadenceFormOption, ...CadenceFormOption[]];
 }) {
   const [error, formAction, pending] = useActionState(createCatalogItemAction, null);
-  const initialKind = cadenceOptions[0]?.kind ?? "daily";
-  const [cadenceKind, setCadenceKind] = useState(initialKind);
-  const selected =
-    cadenceFormOption(cadenceOptions, cadenceKind) ?? cadenceOptions[0];
+  const [cadenceKind, setCadenceKind] = useState(cadenceOptions[0].kind);
+  const selected = cadenceFormOption(cadenceOptions, cadenceKind);
+  if (selected === undefined) {
+    throw new Error(`Selected cadence kind is not in cadenceOptions: ${cadenceKind}`);
+  }
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
@@ -105,7 +107,7 @@ export function HandEnterForm({
           ))}
         </select>
       </label>
-      {selected ? <CadenceArgs option={selected} /> : null}
+      <CadenceArgs option={selected} />
       <label className="text-sm">
         Zone
         <input
