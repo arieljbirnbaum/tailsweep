@@ -5,7 +5,10 @@ import { useActionState } from "react";
 import { createCatalogItemAction, markDoneAction } from "./actions";
 
 const fieldClass =
-  "mt-1 w-full rounded border border-zinc-300 bg-transparent px-2 py-1 dark:border-zinc-700";
+  "mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50";
+
+/** Native <select> popups often keep a light OS menu while inheriting page text color. */
+const selectClass = `${fieldClass} [color-scheme:light]`;
 
 export function MarkDoneForm({ itemId }: { itemId: string }) {
   const [error, formAction, pending] = useActionState(markDoneAction, null);
@@ -50,7 +53,7 @@ export function HandEnterForm({
       </label>
       <label className="text-sm">
         Cadence
-        <select name="cadenceKind" defaultValue="daily" className={fieldClass}>
+        <select name="cadenceKind" defaultValue="daily" className={selectClass}>
           {cadenceKinds.map((kind) => (
             <option key={kind} value={kind}>
               {kind}
