@@ -122,7 +122,7 @@ describe("InvalidCadenceError — Zod-sourced messages", () => {
     expect(caught.message).toMatch(/Invalid/);
   });
 
-  it("named cadence with extra key uses Zod unrecognized_keys", () => {
+  it("no-argument cadence with extra key uses Zod unrecognized_keys", () => {
     let caught: unknown;
     try {
       parseCadence({ kind: "daily", days: 1 });

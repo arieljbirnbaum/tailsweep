@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { insertCatalogItem, markDone } from "@/adapters";
 import { systemClock } from "@/time/system-clock";
 
+import { cadenceFromForm } from "./cadence-from-form";
 import { getAppDb } from "./db";
 
 type ActionResult = { readonly message: string } | null;
@@ -52,7 +53,8 @@ export async function markDoneAction(
 
 /**
  * Hand-enter one item. The submitted zone is stored as-is (the form prefills
- * `DEFAULT_ZONE`; this action does not invent a zone).
+ * `DEFAULT_ZONE`; this action does not invent a zone). Cadence comes from
+ * `cadenceFromForm` → `parseCadence`.
  */
 export async function createCatalogItemAction(
   _previous: ActionResult,
@@ -61,17 +63,19 @@ export async function createCatalogItemAction(
   const name = formString(formData, "name");
   const cadenceKind = formString(formData, "cadenceKind");
   const zone = formString(formData, "zone");
+  const daysRaw = formString(formData, "days");
   if (name === null || cadenceKind === null || zone === null) {
     return { message: "Name, cadence, and zone are required." };
   }
 
   try {
+    const cadence = cadenceFromForm(cadenceKind, daysRaw);
     const db = await getAppDb();
     const id = crypto.randomUUID();
     await insertCatalogItem(db, {
       id,
       name,
-      cadenceKind,
+      cadence,
       zone,
       at: systemClock.now(),
     });

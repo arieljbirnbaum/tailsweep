@@ -12,7 +12,8 @@ import { z } from "zod";
 
 import { InvalidCadenceError } from "./errors";
 
-const NAMED_KINDS = [
+/** Kinds that take no arguments: the cadence is fully described by `kind`. */
+const NO_ARG_KINDS = [
   "daily",
   "weekly",
   "monthly",
@@ -21,14 +22,14 @@ const NAMED_KINDS = [
   "as_needed",
 ] as const;
 
-export const namedCadenceKindSchema = z.enum(NAMED_KINDS);
 
-export type NamedCadenceKind = z.infer<typeof namedCadenceKindSchema>;
+/** The one kind that carries an argument (`days`). Shared by schema and CADENCE_KINDS. */
+const EVERY_N_DAYS = "every_n_days" as const;
 
-/** Internal named cadence: { kind } only. */
-const namedCadenceSchema = z
+/** No-argument cadence: { kind } only. */
+const noArgCadenceSchema = z
   .object({
-    kind: namedCadenceKindSchema,
+    kind: z.enum(NO_ARG_KINDS),
   })
   .strict();
 
@@ -38,33 +39,42 @@ const namedCadenceSchema = z
  */
 const everyNDaysCadenceSchema = z
   .object({
-    kind: z.literal("every_n_days"),
+    kind: z.literal(EVERY_N_DAYS),
     days: z.number().int().positive(),
   })
   .strict();
 
 /**
  * Branded Cadence — how often an item should be completed again after lastDone.
- * Named kinds use calendar periods in the item's zone; `every_n_days` adds a
+ * daily … yearly step by calendar periods in the item's zone; `every_n_days` adds a
  * fixed day count. Valid-by-construction via cadence / parseCadence /
  * parseCadenceJson. Plain literals are not assignable. ESLint blanket-bans type
  * assertions except `as const` / `<const>` (other escapes need a scoped carve-out;
  * never chained). The engine trusts branded inputs and does not re-validate.
  */
 export const cadenceSchema = z
-  .union([namedCadenceSchema, everyNDaysCadenceSchema])
+  .union([noArgCadenceSchema, everyNDaysCadenceSchema])
   .brand<"Cadence">();
 
 export type Cadence = z.infer<typeof cadenceSchema>;
 
 /**
  * Typed input for in-app Cadence construction (not unknown).
- * Named kinds or every_n_days with a days number — runtime Zod still enforces
- * positive integer days / no extra keys.
+ * Derived from cadenceSchema (unbranded input side) — never restated by hand.
+ * Runtime Zod still enforces positive integer days / no extra keys.
  */
-export type CadenceInput =
-  | { kind: NamedCadenceKind }
-  | { kind: "every_n_days"; days: number };
+export type CadenceInput = z.input<typeof cadenceSchema>;
+
+/** Every cadence kind, derived from cadenceSchema (no-argument kinds and every_n_days). */
+export type CadenceKind = Cadence["kind"];
+
+/**
+ * Runtime list of every cadence kind, in display order.
+ * Built from the same constants as cadenceSchema; `cadence.test.ts` proves
+ * `(typeof CADENCE_KINDS)[number]` equals `CadenceKind` in both directions,
+ * so adding a variant to cadenceSchema without listing it here fails typecheck.
+ */
+export const CADENCE_KINDS = [...NO_ARG_KINDS, EVERY_N_DAYS] as const;
 
 function invalidCadenceFromZod(error: z.ZodError): InvalidCadenceError {
   return new InvalidCadenceError(z.prettifyError(error));
