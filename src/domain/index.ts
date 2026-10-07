@@ -46,6 +46,7 @@ export {
 
 export {
   catalogItemStatusSchema,
+  catalogItemNameSchema,
   zoneSchema,
   catalogItemWireSchema,
   parseZone,
