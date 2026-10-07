@@ -7,5 +7,12 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // expectTypeOf assertions are no-ops at runtime; typecheck mode makes
+    // `pnpm test` fail on them too (not only `pnpm typecheck`).
+    typecheck: {
+      enabled: true,
+      include: ["src/**/*.test.ts"],
+      tsconfig: "./tsconfig.json",
+    },
   },
 });
