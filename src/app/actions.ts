@@ -8,6 +8,7 @@
 import { revalidatePath } from "next/cache";
 
 import { insertCatalogItem, markDone } from "@/adapters";
+import { namedCadenceKindSchema, type CadenceInput } from "@/domain";
 import { systemClock } from "@/time/system-clock";
 
 import { getAppDb } from "./db";
@@ -25,6 +26,40 @@ function formString(formData: FormData, key: string): string | null {
   const value = formData.get(key);
   if (typeof value !== "string") return null;
   return value;
+}
+
+/**
+ * Form strings → CadenceInput. Fail loud on unknown kind, every_n_days without
+ * a positive integer days, or days sent with a named kind.
+ */
+function cadenceInputFromForm(
+  cadenceKind: string,
+  daysRaw: string | null,
+): CadenceInput | { readonly message: string } {
+  if (cadenceKind === "every_n_days") {
+    if (daysRaw === null || daysRaw.length === 0) {
+      return {
+        message:
+          "Days is required for every_n_days (e.g. 14 for every two weeks).",
+      };
+    }
+    const days = Number(daysRaw);
+    if (!Number.isInteger(days) || days < 1) {
+      return { message: "Days must be a positive integer." };
+    }
+    return { kind: "every_n_days", days };
+  }
+
+  const named = namedCadenceKindSchema.safeParse(cadenceKind);
+  if (!named.success) {
+    return { message: `Unknown cadence kind: ${cadenceKind}` };
+  }
+  if (daysRaw !== null && daysRaw.length > 0) {
+    return {
+      message: `days is only valid with every_n_days; got cadenceKind "${cadenceKind}"`,
+    };
+  }
+  return { kind: named.data };
 }
 
 /** One click, one completion id. `completedAt` is `systemClock.now()` here. */
@@ -66,16 +101,9 @@ export async function createCatalogItemAction(
     return { message: "Name, cadence, and zone are required." };
   }
 
-  let days: number | undefined;
-  if (cadenceKind === "every_n_days") {
-    if (daysRaw === null || daysRaw.length === 0) {
-      return { message: "Days is required for every_n_days (e.g. 14 for every two weeks)." };
-    }
-    const parsed = Number(daysRaw);
-    if (!Number.isInteger(parsed) || parsed < 1) {
-      return { message: "Days must be a positive integer." };
-    }
-    days = parsed;
+  const cadenceOrError = cadenceInputFromForm(cadenceKind, daysRaw);
+  if ("message" in cadenceOrError) {
+    return { message: cadenceOrError.message };
   }
 
   try {
@@ -84,8 +112,7 @@ export async function createCatalogItemAction(
     await insertCatalogItem(db, {
       id,
       name,
-      cadenceKind,
-      ...(days === undefined ? {} : { days }),
+      cadence: cadenceOrError,
       zone,
       at: systemClock.now(),
     });

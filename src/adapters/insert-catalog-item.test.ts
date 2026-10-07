@@ -63,7 +63,7 @@ describe("insertCatalogItem", () => {
     await insertCatalogItem(db, {
       id: "plants",
       name: "Water plants",
-      cadenceKind: "daily",
+      cadence: { kind: "daily" },
       zone: ZONE,
       at: CREATED,
     });
@@ -103,15 +103,13 @@ describe("insertCatalogItem", () => {
     expect(after.dueList[0]!.state).not.toBe("overdue");
   });
 
-
   it("inserts every_n_days with a positive day count (e.g. every two weeks)", async () => {
     const db = await openTempDb();
 
     await insertCatalogItem(db, {
       id: "trash",
       name: "Take out trash",
-      cadenceKind: "every_n_days",
-      days: 14,
+      cadence: { kind: "every_n_days", days: 14 },
       zone: ZONE,
       at: CREATED,
     });
@@ -126,31 +124,9 @@ describe("insertCatalogItem", () => {
 
     await expect(
       insertCatalogItem(db, {
-        id: "bad-cadence",
-        name: "Nope",
-        cadenceKind: "every_n_days",
-        zone: ZONE,
-        at: CREATED,
-      }),
-    ).rejects.toBeInstanceOf(InvalidCadenceError);
-
-    await expect(
-      insertCatalogItem(db, {
         id: "bad-days",
         name: "Nope",
-        cadenceKind: "every_n_days",
-        days: 0,
-        zone: ZONE,
-        at: CREATED,
-      }),
-    ).rejects.toBeInstanceOf(InvalidCadenceError);
-
-    await expect(
-      insertCatalogItem(db, {
-        id: "named-with-days",
-        name: "Nope",
-        cadenceKind: "weekly",
-        days: 14,
+        cadence: { kind: "every_n_days", days: 0 },
         zone: ZONE,
         at: CREATED,
       }),
@@ -160,7 +136,7 @@ describe("insertCatalogItem", () => {
       insertCatalogItem(db, {
         id: "bad-zone",
         name: "Nope",
-        cadenceKind: "weekly",
+        cadence: { kind: "weekly" },
         zone: "Not/AZone",
         at: CREATED,
       }),

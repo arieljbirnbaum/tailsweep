@@ -1,11 +1,11 @@
 import { DEFAULT_ZONE, loadAndEvaluate } from "@/adapters";
-import { namedCadenceKindSchema } from "@/domain";
 import type { CatalogItem } from "@/domain";
 import { systemClock } from "@/time/system-clock";
 
 import { formatCivilDate } from "./civil-date";
 import { getAppDb } from "./db";
 import { HandEnterForm, MarkDoneForm } from "./forms";
+import { HAND_ENTER_CADENCE_OPTIONS } from "./hand-enter-cadence";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +59,7 @@ export default async function Home() {
 
       <HandEnterForm
         defaultZone={DEFAULT_ZONE}
-        cadenceKinds={namedCadenceKindSchema.options}
+        cadenceOptions={HAND_ENTER_CADENCE_OPTIONS}
       />
     </main>
   );

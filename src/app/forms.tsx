@@ -3,6 +3,11 @@
 import { useActionState, useState } from "react";
 
 import { createCatalogItemAction, markDoneAction } from "./actions";
+import {
+  cadenceFormOption,
+  type CadenceFormOption,
+  type EveryNDaysCadenceFormOption,
+} from "./hand-enter-cadence";
 
 const fieldClass =
   "mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50";
@@ -35,16 +40,45 @@ export function MarkDoneForm({ itemId }: { itemId: string }) {
   );
 }
 
+function EveryNDaysArgs({ option }: { option: EveryNDaysCadenceFormOption }) {
+  return (
+    <label className="text-sm">
+      Days
+      <input
+        name="days"
+        type="number"
+        required
+        min={1}
+        step={1}
+        defaultValue={option.defaultDays}
+        className={fieldClass}
+      />
+    </label>
+  );
+}
+
+/** Per-kind argument fields. Named kinds have none. */
+function CadenceArgs({ option }: { option: CadenceFormOption }) {
+  switch (option.kind) {
+    case "every_n_days":
+      return <EveryNDaysArgs option={option} />;
+    default:
+      return null;
+  }
+}
+
 export function HandEnterForm({
   defaultZone,
-  cadenceKinds,
+  cadenceOptions,
 }: {
   defaultZone: string;
-  cadenceKinds: readonly string[];
+  cadenceOptions: readonly CadenceFormOption[];
 }) {
   const [error, formAction, pending] = useActionState(createCatalogItemAction, null);
-  const [cadenceKind, setCadenceKind] = useState("daily");
-  const kinds = [...cadenceKinds, "every_n_days"];
+  const initialKind = cadenceOptions[0]?.kind ?? "daily";
+  const [cadenceKind, setCadenceKind] = useState(initialKind);
+  const selected =
+    cadenceFormOption(cadenceOptions, cadenceKind) ?? cadenceOptions[0];
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
@@ -58,30 +92,20 @@ export function HandEnterForm({
         <select
           name="cadenceKind"
           value={cadenceKind}
-          onChange={(event) => setCadenceKind(event.target.value)}
+          onChange={(event) => {
+            const next = cadenceFormOption(cadenceOptions, event.target.value);
+            if (next) setCadenceKind(next.kind);
+          }}
           className={selectClass}
         >
-          {kinds.map((kind) => (
-            <option key={kind} value={kind}>
-              {kind}
+          {cadenceOptions.map((option) => (
+            <option key={option.kind} value={option.kind}>
+              {option.kind}
             </option>
           ))}
         </select>
       </label>
-      {cadenceKind === "every_n_days" ? (
-        <label className="text-sm">
-          Days
-          <input
-            name="days"
-            type="number"
-            required
-            min={1}
-            step={1}
-            defaultValue={14}
-            className={fieldClass}
-          />
-        </label>
-      ) : null}
+      {selected ? <CadenceArgs option={selected} /> : null}
       <label className="text-sm">
         Zone
         <input
