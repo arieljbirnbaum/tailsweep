@@ -58,6 +58,8 @@ type ArgField = {
   readonly name: string;
   readonly errorId: string;
   readonly errors: readonly string[] | undefined;
+  /** Submitted value echoed back by the server (keeps no-JS re-renders honest). */
+  readonly initialValue: string | undefined;
 };
 
 type CadenceArgFields = { readonly days: ArgField };
@@ -70,7 +72,7 @@ function EveryNDaysArgs({ defaultDays, field }: { defaultDays: number; field: Ar
         id={field.id}
         name={field.name}
         inputMode="numeric"
-        defaultValue={String(defaultDays)}
+        defaultValue={field.initialValue ?? String(defaultDays)}
         aria-invalid={field.errors ? true : undefined}
         aria-describedby={field.errors ? field.errorId : undefined}
         className={fieldClass}
@@ -111,6 +113,17 @@ function renderCadenceArgs<K extends CadenceKind>(
   return render(defaults[kind], fields);
 }
 
+/**
+ * Kind the select starts on. Without JavaScript the args inputs can't follow
+ * the select, so after a rejected submit the server render must start from the
+ * submitted kind; otherwise its inputs (and their errors) stay unmounted. An
+ * unknown submitted kind already shows its own `cadence.kind` error, so the
+ * select falls back to the first kind for display only.
+ */
+function initialCadenceKind(submitted: string | undefined): CadenceKind {
+  return CADENCE_KINDS.find((k) => k === submitted) ?? CADENCE_KINDS[0];
+}
+
 function toCadenceKind(raw: string): CadenceKind {
   const kind = CADENCE_KINDS.find((k) => k === raw);
   if (kind === undefined) {
@@ -137,7 +150,9 @@ export function HandEnterForm({
     shouldRevalidate: "onInput",
   });
   const cadence = fields.cadence.getFieldset();
-  const [cadenceKind, setCadenceKind] = useState<CadenceKind>(CADENCE_KINDS[0]);
+  const [cadenceKind, setCadenceKind] = useState<CadenceKind>(() =>
+    initialCadenceKind(cadence.kind.initialValue),
+  );
 
   return (
     <form
@@ -153,6 +168,7 @@ export function HandEnterForm({
         <input
           id={fields.name.id}
           name={fields.name.name}
+          defaultValue={fields.name.initialValue}
           aria-invalid={fields.name.errors ? true : undefined}
           aria-describedby={fields.name.errors ? fields.name.errorId : undefined}
           className={fieldClass}
@@ -188,7 +204,7 @@ export function HandEnterForm({
         <input
           id={fields.zone.id}
           name={fields.zone.name}
-          defaultValue={defaultZone}
+          defaultValue={fields.zone.initialValue ?? defaultZone}
           autoComplete="off"
           aria-invalid={fields.zone.errors ? true : undefined}
           aria-describedby={fields.zone.errors ? fields.zone.errorId : undefined}

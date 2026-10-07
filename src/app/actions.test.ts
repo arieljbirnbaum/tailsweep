@@ -74,6 +74,7 @@ describe("createCatalogItemAction", () => {
     const inserted = await rows();
     expect(inserted).toHaveLength(1);
     expect(inserted[0]?.name).toBe("Water plants");
+    expect(inserted[0]?.zone).toBe("Europe/Berlin");
     expect(JSON.parse(inserted[0]?.cadenceJson ?? "null")).toEqual({ kind: "daily" });
   });
 
@@ -84,6 +85,7 @@ describe("createCatalogItemAction", () => {
     );
     expect(result.error).toBeUndefined();
     const inserted = await rows();
+    expect(inserted[0]?.zone).toBe("Europe/Berlin");
     expect(JSON.parse(inserted[0]?.cadenceJson ?? "null")).toEqual({
       kind: "every_n_days",
       days: 14,
