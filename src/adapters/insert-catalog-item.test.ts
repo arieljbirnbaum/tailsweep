@@ -103,6 +103,24 @@ describe("insertCatalogItem", () => {
     expect(after.dueList[0]!.state).not.toBe("overdue");
   });
 
+
+  it("inserts every_n_days with a positive day count (e.g. every two weeks)", async () => {
+    const db = await openTempDb();
+
+    await insertCatalogItem(db, {
+      id: "trash",
+      name: "Take out trash",
+      cadenceKind: "every_n_days",
+      days: 14,
+      zone: ZONE,
+      at: CREATED,
+    });
+
+    const catalog = await loadCatalog(db);
+    expect(catalog).toHaveLength(1);
+    expect(catalog[0]!.cadence).toMatchObject({ kind: "every_n_days", days: 14 });
+  });
+
   it("fails loud on bad cadence or zone and does not insert", async () => {
     const db = await openTempDb();
 
@@ -111,6 +129,17 @@ describe("insertCatalogItem", () => {
         id: "bad-cadence",
         name: "Nope",
         cadenceKind: "every_n_days",
+        zone: ZONE,
+        at: CREATED,
+      }),
+    ).rejects.toBeInstanceOf(InvalidCadenceError);
+
+    await expect(
+      insertCatalogItem(db, {
+        id: "bad-days",
+        name: "Nope",
+        cadenceKind: "every_n_days",
+        days: 0,
         zone: ZONE,
         at: CREATED,
       }),

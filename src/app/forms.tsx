@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import { createCatalogItemAction, markDoneAction } from "./actions";
 
@@ -43,6 +43,8 @@ export function HandEnterForm({
   cadenceKinds: readonly string[];
 }) {
   const [error, formAction, pending] = useActionState(createCatalogItemAction, null);
+  const [cadenceKind, setCadenceKind] = useState("daily");
+  const kinds = [...cadenceKinds, "every_n_days"];
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
@@ -53,14 +55,33 @@ export function HandEnterForm({
       </label>
       <label className="text-sm">
         Cadence
-        <select name="cadenceKind" defaultValue="daily" className={selectClass}>
-          {cadenceKinds.map((kind) => (
+        <select
+          name="cadenceKind"
+          value={cadenceKind}
+          onChange={(event) => setCadenceKind(event.target.value)}
+          className={selectClass}
+        >
+          {kinds.map((kind) => (
             <option key={kind} value={kind}>
               {kind}
             </option>
           ))}
         </select>
       </label>
+      {cadenceKind === "every_n_days" ? (
+        <label className="text-sm">
+          Days
+          <input
+            name="days"
+            type="number"
+            required
+            min={1}
+            step={1}
+            defaultValue={14}
+            className={fieldClass}
+          />
+        </label>
+      ) : null}
       <label className="text-sm">
         Zone
         <input

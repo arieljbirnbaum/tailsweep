@@ -61,8 +61,21 @@ export async function createCatalogItemAction(
   const name = formString(formData, "name");
   const cadenceKind = formString(formData, "cadenceKind");
   const zone = formString(formData, "zone");
+  const daysRaw = formString(formData, "days");
   if (name === null || cadenceKind === null || zone === null) {
     return { message: "Name, cadence, and zone are required." };
+  }
+
+  let days: number | undefined;
+  if (cadenceKind === "every_n_days") {
+    if (daysRaw === null || daysRaw.length === 0) {
+      return { message: "Days is required for every_n_days (e.g. 14 for every two weeks)." };
+    }
+    const parsed = Number(daysRaw);
+    if (!Number.isInteger(parsed) || parsed < 1) {
+      return { message: "Days must be a positive integer." };
+    }
+    days = parsed;
   }
 
   try {
@@ -72,6 +85,7 @@ export async function createCatalogItemAction(
       id,
       name,
       cadenceKind,
+      ...(days === undefined ? {} : { days }),
       zone,
       at: systemClock.now(),
     });
