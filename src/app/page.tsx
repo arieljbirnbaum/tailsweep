@@ -1,30 +1,66 @@
-export default function Home() {
+import { DEFAULT_ZONE, loadAndEvaluate } from "@/adapters";
+import { namedCadenceKindSchema } from "@/domain";
+import type { CatalogItem } from "@/domain";
+import { systemClock } from "@/time/system-clock";
+
+import { formatCivilDate } from "./civil-date";
+import { getAppDb } from "./db";
+import { HandEnterForm, MarkDoneForm } from "./forms";
+
+export const dynamic = "force-dynamic";
+
+function zoneFor(catalog: readonly CatalogItem[], id: string): string {
+  for (const item of catalog) {
+    if (item.id === id) return item.zone;
+  }
+  throw new Error(`Due list id missing from catalog: ${id}`);
+}
+
+export default async function Home() {
+  const db = await getAppDb();
+  const { catalog, dueList } = await loadAndEvaluate(db, { clock: systemClock });
+
   return (
-    <div className="flex flex-1 flex-col items-center justify-center bg-zinc-50 px-6 py-24 font-sans dark:bg-zinc-950">
-      <main className="flex w-full max-w-lg flex-col gap-6">
-        <p className="text-sm font-medium tracking-wide text-zinc-500 uppercase">
-          Ailurid
-        </p>
-        <h1 className="text-4xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Duekeep
-        </h1>
-        <p className="text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
-          Completion-anchored chore cadence. Engine before chrome — implement{" "}
-          <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-sm dark:bg-zinc-800">
-            src/engine
-          </code>{" "}
-          until <code className="font-mono text-sm">pnpm test</code> is green.
-        </p>
-        <ul className="list-inside list-disc text-sm text-zinc-500 dark:text-zinc-500">
-          <li>
-            Architecture: <span className="font-mono">ARCHITECTURE.md</span>
-          </li>
-          <li>
-            Contract tests:{" "}
-            <span className="font-mono">src/engine/evaluate.test.ts</span>
-          </li>
+    <main className="mx-auto flex w-full max-w-lg flex-col gap-10 px-6 py-10">
+      <h1 className="text-2xl font-semibold tracking-tight">Duekeep</h1>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="text-lg font-medium">Due</h2>
+        <ul className="flex flex-col">
+          {dueList.length === 0 ? (
+            <li className="py-3 text-sm text-zinc-600 dark:text-zinc-400">
+              Nothing due.
+            </li>
+          ) : (
+            dueList.map((view) => {
+              const zone = zoneFor(catalog, view.id);
+              const due =
+                view.nextDue === null ? null : formatCivilDate(view.nextDue, zone);
+              return (
+                <li
+                  key={view.id}
+                  className="flex items-center justify-between gap-4 border-b border-zinc-200 py-3 dark:border-zinc-800"
+                >
+                  <div>
+                    <p className="font-medium">{view.name}</p>
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                      {view.state}
+                      {" · "}
+                      {due === null ? "—" : <time dateTime={due}>{due}</time>}
+                    </p>
+                  </div>
+                  <MarkDoneForm itemId={view.id} />
+                </li>
+              );
+            })
+          )}
         </ul>
-      </main>
-    </div>
+      </section>
+
+      <HandEnterForm
+        defaultZone={DEFAULT_ZONE}
+        cadenceKinds={namedCadenceKindSchema.options}
+      />
+    </main>
   );
 }

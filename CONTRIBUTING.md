@@ -4,8 +4,8 @@
 
 ```bash
 pnpm install
-pnpm db:migrate   # local SQLite schema (file:./duekeep.db or DATABASE_URL)
-pnpm dev          # Next.js
+pnpm db:migrate   # optional CLI migrate (file:./duekeep.db or DATABASE_URL)
+pnpm dev          # Next.js; applies migrations on first DB open
 pnpm test         # Vitest
 pnpm typecheck
 pnpm lint
@@ -21,7 +21,7 @@ Requires **Node ≥ 20**. Temporal comes from `@js-temporal/polyfill` (native on
 | Due math           | `src/engine/`                               | **Ariel** — evaluate*; typedefs from domain  |
 | App adapters       | `src/adapters/`                             | load → evaluate → VMs; UX defaults only here |
 | Scaffold / harness | repo root, configs, tests defining contract | Mercer (this scaffold)                       |
-| UI                 | `src/app/`                                  | later                                        |
+| UI                 | `src/app/`                                  | bare due list; server actions mint ids       |
 | DB                 | `src/db/`                                   | schema, mappers (domain parsers), migrations |
 
 ## Changing the engine / domain
