@@ -13,7 +13,6 @@ export { Temporal } from "./temporal";
 export { InvalidCadenceError } from "./errors";
 
 export {
-  namedCadenceKindSchema,
   CADENCE_KINDS,
   cadenceSchema,
   cadence,

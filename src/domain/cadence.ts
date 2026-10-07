@@ -21,7 +21,7 @@ const NAMED_KINDS = [
   "as_needed",
 ] as const;
 
-export const namedCadenceKindSchema = z.enum(NAMED_KINDS);
+const namedCadenceKindSchema = z.enum(NAMED_KINDS);
 
 export type NamedCadenceKind = z.infer<typeof namedCadenceKindSchema>;
 
