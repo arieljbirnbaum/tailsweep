@@ -12,6 +12,9 @@ import { Temporal } from "./temporal";
 
 export const catalogItemStatusSchema = z.enum(["active", "paused"]);
 
+/** Catalog item display name: non-empty string. */
+export const catalogItemNameSchema = z.string().min(1);
+
 export type CatalogItemStatus = z.infer<typeof catalogItemStatusSchema>;
 
 /**
@@ -72,7 +75,7 @@ export const zoneSchema = z.string().superRefine((value, ctx) => {
 export const catalogItemWireSchema = z
   .object({
     id: z.string().min(1),
-    name: z.string().min(1),
+    name: catalogItemNameSchema,
     cadence: cadenceSchema,
     lastDone: z.union([z.string().min(1), z.null()]),
     zone: zoneSchema,
@@ -137,7 +140,7 @@ export function parseCatalogItem(input: {
   status: unknown;
 }): CatalogItem {
   const id = z.string().min(1).parse(input.id);
-  const name = z.string().min(1).parse(input.name);
+  const name = catalogItemNameSchema.parse(input.name);
   const cadence = parseCadence(input.cadence);
   const zone = parseZone(input.zone);
   const status = parseCatalogItemStatus(input.status);

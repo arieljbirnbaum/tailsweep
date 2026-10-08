@@ -4,7 +4,7 @@
  * Persistence insert — not due math, and not id minting. The caller supplies
  * the item id and the createdAt/updatedAt Instant. Status is active and
  * lastDone is null. Bad zone fails before write. Cadence must already be
- * branded (command edge / tests call cadence or cadenceFromForm).
+ * branded (command edge parses via handEnterFormSchema; tests call cadence).
  */
 
 import { catalogItems, catalogItemToRow, type Db } from "@/db";
@@ -14,7 +14,7 @@ export type InsertCatalogItemInput = {
   /** Caller-supplied id. This function does not mint one. */
   readonly id: string;
   readonly name: string;
-  /** Branded Cadence from `cadence` / `parseCadence` / `cadenceFromForm`. */
+  /** Branded Cadence from `cadence` / `parseCadence` / `handEnterFormSchema`. */
   readonly cadence: Cadence;
   /** IANA zone. Unknown / padded values fail in `parseZone`. */
   readonly zone: string;

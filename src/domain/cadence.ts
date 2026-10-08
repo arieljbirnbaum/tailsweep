@@ -45,6 +45,8 @@ const everyNDaysCadenceSchema = z
   .strict();
 
 /**
+ * Discriminated on `kind`, so issues land on the failing field (`kind` / `days`).
+ *
  * Branded Cadence — how often an item should be completed again after lastDone.
  * daily … yearly step by calendar periods in the item's zone; `every_n_days` adds a
  * fixed day count. Valid-by-construction via cadence / parseCadence /
@@ -53,7 +55,7 @@ const everyNDaysCadenceSchema = z
  * never chained). The engine trusts branded inputs and does not re-validate.
  */
 export const cadenceSchema = z
-  .union([noArgCadenceSchema, everyNDaysCadenceSchema])
+  .discriminatedUnion("kind", [noArgCadenceSchema, everyNDaysCadenceSchema])
   .brand<"Cadence">();
 
 export type Cadence = z.infer<typeof cadenceSchema>;

@@ -5,13 +5,14 @@
  * `systemClock`. `markDone` and `insertCatalogItem` do not.
  */
 
+import type { SubmissionResult } from "@conform-to/zod/v4";
 import { revalidatePath } from "next/cache";
 
 import { insertCatalogItem, markDone } from "@/adapters";
 import { systemClock } from "@/time/system-clock";
 
-import { cadenceFromForm } from "./cadence-from-form";
 import { getAppDb } from "./db";
+import { parseHandEnterForm } from "./hand-enter-form";
 
 type ActionResult = { readonly message: string } | null;
 
@@ -52,37 +53,34 @@ export async function markDoneAction(
 }
 
 /**
- * Hand-enter one item. The submitted zone is stored as-is (the form prefills
- * `DEFAULT_ZONE`; this action does not invent a zone). Cadence comes from
- * `cadenceFromForm` → `parseCadence`.
+ * Hand-enter one item. Validation is `parseHandEnterForm` (the same schema the
+ * client runs); failures come back as per-field errors. Adapter / DB failures
+ * come back as form-level errors. The submitted zone is stored as-is (the form
+ * prefills `DEFAULT_ZONE`; this action does not invent one).
  */
 export async function createCatalogItemAction(
-  _previous: ActionResult,
+  _previous: SubmissionResult<string[]> | null,
   formData: FormData,
-): Promise<ActionResult> {
-  const name = formString(formData, "name");
-  const cadenceKind = formString(formData, "cadenceKind");
-  const zone = formString(formData, "zone");
-  const daysRaw = formString(formData, "days");
-  if (name === null || cadenceKind === null || zone === null) {
-    return { message: "Name, cadence, and zone are required." };
+): Promise<SubmissionResult<string[]>> {
+  const submission = parseHandEnterForm(formData);
+  if (submission.status !== "success") {
+    return submission.reply();
   }
 
+  const { name, zone, cadence } = submission.value;
   try {
-    const cadence = cadenceFromForm(cadenceKind, daysRaw);
     const db = await getAppDb();
-    const id = crypto.randomUUID();
     await insertCatalogItem(db, {
-      id,
+      id: crypto.randomUUID(),
       name,
       cadence,
       zone,
       at: systemClock.now(),
     });
   } catch (err) {
-    return { message: errorText(err) };
+    return submission.reply({ formErrors: [errorText(err)] });
   }
 
   revalidatePath("/");
-  return null;
+  return submission.reply({ resetForm: true });
 }

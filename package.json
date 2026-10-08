@@ -17,6 +17,8 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@conform-to/react": "^1.21.1",
+    "@conform-to/zod": "^1.21.1",
     "@js-temporal/polyfill": "0.5.1",
     "@libsql/client": "^0.18.0",
     "drizzle-orm": "^0.45.3",
