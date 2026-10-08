@@ -1,5 +1,5 @@
 /**
- * Duekeep due-engine — pure TypeScript.
+ * Tailsweep due-engine — pure TypeScript.
  *
  * HARD RULE: this package/folder must never import Next.js, React, Drizzle,
  * fs, fetch, or any I/O. App adapters live under src/adapters; persistence

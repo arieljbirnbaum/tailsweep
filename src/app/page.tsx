@@ -22,7 +22,7 @@ export default async function Home() {
 
   return (
     <main className="mx-auto flex w-full max-w-lg flex-col gap-10 px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Duekeep</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Tailsweep</h1>
 
       <section className="flex flex-col gap-2">
         <h2 className="text-lg font-medium">Due</h2>

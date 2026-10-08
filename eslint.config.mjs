@@ -4,7 +4,7 @@ import nextTs from "eslint-config-next/typescript";
 import prettier from "eslint-config-prettier";
 
 const dateBanMessage =
-  "Date is banned in Duekeep. Use Temporal.Instant / ZonedDateTime / PlainDate.";
+  "Date is banned in Tailsweep. Use Temporal.Instant / ZonedDateTime / PlainDate.";
 
 const engineZodBanMessage =
   "Do not import zod under src/engine. Domain owns Zod parse; engine stays pure due math.";

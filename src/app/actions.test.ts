@@ -47,7 +47,7 @@ describe("createCatalogItemAction", () => {
   let db: Db;
 
   beforeEach(async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "duekeep-ail-43-"));
+    const dir = mkdtempSync(path.join(tmpdir(), "tailsweep-ail-43-"));
     tempDirs.push(dir);
     db = createDb(`file:${path.join(dir, "test.db")}`);
     openDbs.push(db);

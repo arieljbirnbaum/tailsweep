@@ -1,4 +1,4 @@
-# Duekeep
+# Tailsweep
 
 **Ailurid** — completion-anchored chore/routine cadence.
 
@@ -28,15 +28,15 @@ Gamification, social, full GTD, AI coaching chat, accounts-heavy SaaS.
 ## Setup
 
 ```bash
-git clone git@github.com:arieljbirnbaum/duekeep.git
-cd duekeep
+git clone git@github.com:arieljbirnbaum/tailsweep.git
+cd tailsweep
 pnpm install   # packageManager is pnpm@12.6.0
-pnpm db:migrate   # optional: apply drizzle/ SQL from the CLI (file:./duekeep.db or DATABASE_URL)
+pnpm db:migrate   # optional: apply drizzle/ SQL from the CLI (file:./tailsweep.db or DATABASE_URL)
 pnpm dev         # also applies pending migrations on first DB open
 pnpm typecheck && pnpm lint && pnpm test
 ```
 
-`DATABASE_URL` defaults to `file:./duekeep.db` when unset (see `drizzle.config.ts`). `pnpm dev` opens that file and runs `applyMigrations` on first use, so a manual migrate is not required to see the list. Catalog item ids and completion ids are minted in the Next server actions (`crypto.randomUUID`), not in `markDone` or SQLite.
+`DATABASE_URL` defaults to `file:./tailsweep.db` when unset (see `drizzle.config.ts`). `pnpm dev` opens that file and runs `applyMigrations` on first use, so a manual migrate is not required to see the list. Catalog item ids and completion ids are minted in the Next server actions (`crypto.randomUUID`), not in `markDone` or SQLite.
 
 ## Architecture
 

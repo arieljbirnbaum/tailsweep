@@ -1,5 +1,5 @@
 /**
- * Duekeep domain layer — Zod schemas + constrained / branded types +
+ * Tailsweep domain layer — Zod schemas + constrained / branded types +
  * factories (typed) and fail-loud parsers (unknown / JSON boundaries).
  *
  * Prefer `cadence` / `evaluateOptions` for in-app construction; parse* right after deserialization.
