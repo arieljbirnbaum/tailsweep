@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Duekeep",
+  title: "Tailsweep",
   description: "Completion-anchored chore/routine cadence (Ailurid).",
 };
 

@@ -1,4 +1,4 @@
-# Duekeep architecture
+# Tailsweep architecture
 
 **Ailurid** — completion-anchored chore/routine cadence. Last done + cadence → what’s due.
 
@@ -180,7 +180,7 @@ Persistence lives **outside** `src/engine`. The engine stays pure (no Drizzle / 
 - SQL migrations in `./drizzle` (committed). Generate with `pnpm db:generate` (`drizzle-kit generate`).
 - Apply with `pnpm db:migrate` (`drizzle-kit migrate`, reads `drizzle.config.ts`).
 - Programmatic apply (tests): `applyMigrations(db)` from `src/db/migrate.ts` via `drizzle-orm/libsql/migrator`.
-- Default DB URL: `DATABASE_URL` or `file:./duekeep.db` (see `drizzle.config.ts` / `createDb`).
+- Default DB URL: `DATABASE_URL` or `file:./tailsweep.db` (see `drizzle.config.ts` / `createDb`).
 - From a clean clone: `pnpm install` → `pnpm db:migrate`.
 
 ### What stays out of the DB layer

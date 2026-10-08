@@ -72,7 +72,7 @@ describe("markDone", () => {
   });
 
   async function openTempDb(): Promise<Db> {
-    const dir = mkdtempSync(path.join(tmpdir(), "duekeep-ail-32-"));
+    const dir = mkdtempSync(path.join(tmpdir(), "tailsweep-ail-32-"));
     tempDirs.push(dir);
     const db = createDb(`file:${path.join(dir, "test.db")}`);
     openDbs.push(db);

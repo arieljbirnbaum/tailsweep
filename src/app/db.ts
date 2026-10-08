@@ -1,7 +1,7 @@
 /**
  * App-edge SQLite singleton.
  *
- * First use opens the DB (`DATABASE_URL` or `file:./duekeep.db`) and runs
+ * First use opens the DB (`DATABASE_URL` or `file:./tailsweep.db`) and runs
  * existing `applyMigrations`, so `pnpm dev` does not need a manual migrate.
  * Tests keep using `createDb` on temp files — they do not go through this.
  */

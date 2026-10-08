@@ -41,7 +41,7 @@ describe("db migrate + insert/select", () => {
   });
 
   it("applies migrations on a clean temp db and round-trips rows", async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "duekeep-ail-31-"));
+    const dir = mkdtempSync(path.join(tmpdir(), "tailsweep-ail-31-"));
     tempDirs.push(dir);
     const dbPath = path.join(dir, "test.db");
     const db = createDb(`file:${dbPath}`);

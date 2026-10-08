@@ -54,7 +54,7 @@ describe("adapters loadAndEvaluate", () => {
   });
 
   async function openTempDb(): Promise<Db> {
-    const dir = mkdtempSync(path.join(tmpdir(), "duekeep-ail-30-"));
+    const dir = mkdtempSync(path.join(tmpdir(), "tailsweep-ail-30-"));
     tempDirs.push(dir);
     const db = createDb(`file:${path.join(dir, "test.db")}`);
     openDbs.push(db);

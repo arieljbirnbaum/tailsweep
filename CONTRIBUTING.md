@@ -1,10 +1,10 @@
-# Contributing to Duekeep
+# Contributing to Tailsweep
 
 ## Setup
 
 ```bash
 pnpm install
-pnpm db:migrate   # optional CLI migrate (file:./duekeep.db or DATABASE_URL)
+pnpm db:migrate   # optional CLI migrate (file:./tailsweep.db or DATABASE_URL)
 pnpm dev          # Next.js; applies migrations on first DB open
 pnpm test         # Vitest
 pnpm typecheck

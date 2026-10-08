@@ -7,7 +7,7 @@ import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "./schema";
 
-export function createDb(url = process.env.DATABASE_URL ?? "file:./duekeep.db") {
+export function createDb(url = process.env.DATABASE_URL ?? "file:./tailsweep.db") {
   const client = createClient({ url });
   return drizzle(client, { schema });
 }

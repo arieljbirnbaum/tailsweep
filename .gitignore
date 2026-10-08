@@ -41,8 +41,8 @@ yarn-error.log*
 next-env.d.ts
 
 # Local SQLite
-duekeep.db
-duekeep.db-*
+tailsweep.db
+tailsweep.db-*
 *.db
 
 .mcp-push*.json
