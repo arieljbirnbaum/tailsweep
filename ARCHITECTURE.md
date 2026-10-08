@@ -62,6 +62,8 @@ Convenience defaults (**horizon**, **default zone for UX**) live **only** here �
 
 The Next server actions supply ids; persistence and the engine do not.
 
+The app requires JavaScript. Server rendering is the framework default, not a fallback we support: a form that happens to work without JavaScript is incidental, so do not build or claim no-JS behavior.
+
 The mark-done action uses `systemClock.now()` as `completedAt`, mints one `completionId` with `crypto.randomUUID()`, calls `markDone`, then `revalidatePath("/")`. Hand-enter mints the catalog item id the same way and passes `systemClock.now()` as `at`. Hand-enter validation is one Conform + Zod schema (`handEnterFormSchema`) shared by the client and the action: the form layer only decodes strings (canonical decimal `days`, no auto-coercion) and pipes into the domain `cadenceSchema` / `zoneSchema` / `catalogItemNameSchema`; issues come back per field, adapter failures as form-level errors. The today page renders `loadAndEvaluate`’s `dueList` (no second cadence calculation). It formats each `nextDue` Instant as a civil `YYYY-MM-DD` in the catalog item’s zone (joined by id; a due-list id missing from the catalog fails loud). On first use the app opens the singleton DB and runs `applyMigrations`.
 
 If you need “today” inside the engine, take a `Temporal.Instant` argument or an injectable `Clock`. Do **not** call `Temporal.Now` anywhere under `src/engine` (ESLint error). Production clock lives at `src/time/system-clock.ts` (or inline `{ now: () => Temporal.Now.instant() }` at the adapter edge).
